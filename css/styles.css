@@ -39,6 +39,11 @@
   --retro-glow: 0 0 3px currentColor;
 }
 
+/* Utility Classes */
+.monospace {
+  font-family: 'Courier New', monospace;
+}
+
 html,
 body {
   margin: 0;
@@ -379,6 +384,9 @@ h3 {
 }
 
 .register-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
   font-family: 'Courier New', monospace;
   font-size: 12px;
   background: var(--bg-primary);
@@ -390,14 +398,8 @@ h3 {
   box-sizing: border-box;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
   flex: 1;
-  /* Take remaining space in the section */
   overflow: visible;
-  /* Remove scrolling */
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
   min-height: 250px;
-  /* Enough for 10 registers */
 }
 
 .stack-view {
@@ -413,16 +415,12 @@ h3 {
   overflow-y: auto;
   box-sizing: border-box;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-  /* Take remaining space in the section */
   overflow: visible;
-  /* Remove scrolling */
   display: flex;
   flex-direction: column;
   gap: 1px;
   max-height: 400px;
-  /* min-height: 300px;
-  height: 300px; */
-  /* Enough for 17 stack items */
+  min-height: 200px;
 }
 
 .register {
@@ -431,18 +429,17 @@ h3 {
   align-items: center;
   padding: 4px 6px;
   border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
   word-wrap: break-word;
   overflow-wrap: break-word;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   border-radius: 4px;
   margin-bottom: 1px;
   min-height: 22px;
-  /* Ensure consistent height */
   box-sizing: border-box;
   overflow: hidden;
-  /* Prevent text bleeding */
-
+  background: var(--bg-primary);
 }
 
 .reg-name{
@@ -607,17 +604,8 @@ h3 {
     right: 10px;
   }
 
-  .fab {
-    width: 45px;
-    height: 45px;
-    font-size: 20px;
-  }
 
   .register-grid,
-  .stack-view {
-    flex: 1;
-    min-height: 200px;
-  }
 }
 
 /* Mobile */
@@ -699,13 +687,6 @@ h3 {
 
   .button-group button,
   .button-group .file-input-label,
-  .control-btn {
-    font-size: 11px;
-    padding: 10px 12px;
-    min-width: auto;
-    height: 44px;
-    /* Slightly smaller for mobile */
-  }
 
   .button-status-container {
     min-height: 44px;
@@ -755,11 +736,6 @@ h3 {
     gap: 5px;
   }
 
-  .fab {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
 
   .code-editor {
     min-height: 250px !important;
@@ -825,9 +801,16 @@ input[type="file"] {
 #compilationOutput {
   flex: 1;
   overflow-y: auto;
-  /* min-height: 40px; */
   max-height: 284px;
   margin-top: 1rem;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.3;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  padding: 8px;
+  box-sizing: border-box;
   border-radius: 12px;
 }
 
@@ -835,7 +818,14 @@ input[type="file"] {
   flex: 1;
   min-height: 755px;
   font-size: 12px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.4;
   overflow-y: auto;
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  box-sizing: border-box;
 }
 
 .highlighted-line {
@@ -1124,8 +1114,8 @@ button>* {
   justify-content: center;
   margin: 0;
   height: 48px;
-  /* Fixed height matching other buttons */
   box-sizing: border-box;
+  min-width: auto;
 }
 
 .control-btn:hover {
@@ -1204,22 +1194,7 @@ button>* {
 }
 
 /* Register and Stack Styles */
-.register-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-  font-family: monospace;
-}
 
-.register {
-  display: flex;
-  justify-content: space-between;
-  padding: 2px 5px;
-  border: 1px solid var(--border-color);
-  border-radius: 0;
-  background: var(--bg-primary);
-  transition: all 0.3s ease;
-}
 
 .register:hover {
   background-color: var(--bg-tertiary);
@@ -1236,9 +1211,6 @@ button>* {
   color: var(--text-primary);
 }
 
-.stack-view {
-  font-family: monospace;
-}
 
 .stack-item {
   display: flex;
@@ -1338,16 +1310,12 @@ button>* {
 .button-group {
   display: flex;
   flex-wrap: nowrap;
-  /* Force single row */
   gap: 12px;
-  /* Increased spacing to prevent overlap */
   align-items: center;
   width: 100%;
   box-sizing: border-box;
   overflow-x: auto;
-  /* Allow horizontal scroll if needed */
   padding: 0 4px;
-  /* Add small padding to container */
 }
 
 .button-group button,
@@ -1503,29 +1471,7 @@ button>* {
   box-sizing: border-box;
 }
 
-#disassembly {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.4;
-  border-radius: 12px;
-  padding: 8px;
-  background: var(--bg-primary);
-  border: 2px solid var(--border-color);
-  box-sizing: border-box;
-}
 
-#compilationOutput {
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  line-height: 1.3;
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  border: 2px solid var(--border-color);
-  padding: 8px;
-  overflow-y: auto;
-  box-sizing: border-box;
-  border-radius: 12px;
-}
 
 
 .button-status-container .status {
@@ -1825,17 +1771,18 @@ button>* {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  width: 50px;
+  height: 50px;
 }
 
 .fab:hover {
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   color: var(--bg-primary);
   box-shadow: var(--shadow-hover), 0 0 30px rgba(0, 255, 136, 0.6);
-  transform: scale(1.1) rotate(5deg);
 }
 
 .fab:active {
-  transform: scale(0.95);
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
 }
 
 /* Specific FAB colors */
@@ -1854,6 +1801,7 @@ button>* {
 .fab-reset {
   background: var(--accent-purple);
 }
+
 
 /* Arrow Indicator for Collapsible Sections */
 .collapse-arrow {
