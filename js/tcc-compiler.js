@@ -13,7 +13,7 @@
                 document.getElementById('quickBtn').disabled = false;
                 document.getElementById('linkBtn').disabled = false;
                 
-                console.log('TinyCC module ready with reference approach');
+                console.log('TinyCC WebAssembly module loaded successfully');
                 console.log('Available functions:', Object.keys(tccModule).filter(k => typeof tccModule[k] === 'function'));
             } catch (error) {
                 console.error('Failed to load TinyCC module:', error);

@@ -1153,10 +1153,59 @@ int main() {
       }
     }
     
+    // Helper function to clear all highlighting states
+    function clearAllHighlighting() {
+      console.log('🧹 Clearing all highlighting states for new test...');
+      
+      // Clear assembly highlighting directly
+      const disasmDiv = document.getElementById('disassembly');
+      if (disasmDiv) {
+        const originalText = disasmDiv.getAttribute('data-original-text');
+        if (originalText) {
+          disasmDiv.textContent = originalText;
+        } else if (disasmDiv.innerHTML.includes('<div')) {
+          // Clean up HTML highlighting structure
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = disasmDiv.innerHTML;
+          const divElements = tempDiv.querySelectorAll('div');
+          
+          if (divElements.length > 0) {
+            const textLines = [];
+            divElements.forEach(div => {
+              textLines.push(div.textContent);
+            });
+            const cleanText = textLines.join('\n');
+            disasmDiv.textContent = cleanText;
+          }
+        }
+        
+        // CRITICAL: Remove the stored data-original-text so it gets refreshed with new assembly
+        disasmDiv.removeAttribute('data-original-text');
+      }
+      
+      // Clear C function highlighting
+      if (sourceCodeEditor) {
+        const lineCount = sourceCodeEditor.lineCount();
+        for (let i = 0; i < lineCount; i++) {
+          sourceCodeEditor.removeLineClass(i, 'background', 'highlight-line');
+        }
+      }
+      
+      // Clear debugger highlighting if debugger exists
+      if (typeof unicornDebugger !== 'undefined' && unicornDebugger && unicornDebugger.clearCHighlight) {
+        unicornDebugger.currentHighlightedFunction = null;
+      }
+      
+      console.log('✅ All highlighting states cleared');
+    }
+    
     // Load test code into editor
     function loadTest(type) {
       if (tests[type] && sourceCodeEditor) {
         sourceCodeEditor.setValue(tests[type].code);
+        
+        // Clear any existing highlighting states
+        clearAllHighlighting();
         
         // Show test info in test results area since we don't have separate input fields
         const testResultsDiv = document.getElementById('test-results');
@@ -1393,9 +1442,10 @@ ${'='.repeat(30)}`;
           testResults.innerHTML += `\n[${timestamp}] 🧪 RUNNING: ${testName.toUpperCase()} - ${testData.description}`;
           testResults.scrollTop = testResults.scrollHeight;
           
-          // Load test code
+          // Load test code and clear highlighting
           if (sourceCodeEditor) {
             sourceCodeEditor.setValue(testData.code);
+            clearAllHighlighting(); // Clear highlighting for clean test start
             console.log(`✅ Loaded test code into editor for ${testName}`);
           } else {
             console.warn(`⚠️ sourceCodeEditor not available for ${testName}`);
@@ -1542,9 +1592,10 @@ ${'='.repeat(25)}`;
               testResults.innerHTML += `\n[${timestamp}] 🧪 RUNNING: ${testName.toUpperCase()} - ${testData.description}`;
               testResults.scrollTop = testResults.scrollHeight;
               
-              // Load test code
+              // Load test code and clear highlighting
               if (sourceCodeEditor) {
                 sourceCodeEditor.setValue(testData.code);
+                clearAllHighlighting(); // Clear highlighting for clean test start
               }
               
               // Small delay for UI update

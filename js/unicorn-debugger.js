@@ -2,6 +2,20 @@
     // Wait for Unicorn module to load
     var UnicornModule = uc;
     
+    // 64-bit x86 register definitions using Unicorn constants
+    const X86_64_REGISTERS = [
+      { name: 'RAX', constant: UnicornModule.X86_REG_RAX },
+      { name: 'RBX', constant: UnicornModule.X86_REG_RBX },
+      { name: 'RCX', constant: UnicornModule.X86_REG_RCX },
+      { name: 'RDX', constant: UnicornModule.X86_REG_RDX },
+      { name: 'RSI', constant: UnicornModule.X86_REG_RSI },
+      { name: 'RDI', constant: UnicornModule.X86_REG_RDI },
+      { name: 'RBP', constant: UnicornModule.X86_REG_RBP },
+      { name: 'RSP', constant: UnicornModule.X86_REG_RSP },
+      { name: 'RIP', constant: UnicornModule.X86_REG_RIP },
+      { name: 'RFLAGS', constant: UnicornModule.X86_REG_EFLAGS }
+    ];
+    
     // UnicornDebugger class for step-by-step execution
     class UnicornDebugger {
       constructor(engine, is64bit, entryPoint) {
@@ -296,6 +310,10 @@
           this.engine.reg_write_i32(UnicornModule.X86_REG_EIP, this.entryPoint);
         }
         
+        // Clear all highlighting states
+        this.clearCHighlight();
+        this.clearAssemblyHighlight();
+        
         this.updateButtonStates();
         this.updateUI();
         document.getElementById('emuOutput').textContent = 'Debugger reset.\n';
@@ -359,33 +377,12 @@
       }
       
       getAllRegisters() {
-        if (this.is64bit) {
-          return {
-            RAX: this.engine.reg_read_i64(UnicornModule.X86_REG_RAX),
-            RBX: this.engine.reg_read_i64(UnicornModule.X86_REG_RBX),
-            RCX: this.engine.reg_read_i64(UnicornModule.X86_REG_RCX),
-            RDX: this.engine.reg_read_i64(UnicornModule.X86_REG_RDX),
-            RSI: this.engine.reg_read_i64(UnicornModule.X86_REG_RSI),
-            RDI: this.engine.reg_read_i64(UnicornModule.X86_REG_RDI),
-            RBP: this.engine.reg_read_i64(UnicornModule.X86_REG_RBP),
-            RSP: this.engine.reg_read_i64(UnicornModule.X86_REG_RSP),
-            RIP: this.engine.reg_read_i64(UnicornModule.X86_REG_RIP),
-            RFLAGS: this.engine.reg_read_i64(UnicornModule.X86_REG_EFLAGS)
-          };
-        } else {
-          return {
-            EAX: this.engine.reg_read_i32(UnicornModule.X86_REG_EAX),
-            EBX: this.engine.reg_read_i32(UnicornModule.X86_REG_EBX),
-            ECX: this.engine.reg_read_i32(UnicornModule.X86_REG_ECX),
-            EDX: this.engine.reg_read_i32(UnicornModule.X86_REG_EDX),
-            ESI: this.engine.reg_read_i32(UnicornModule.X86_REG_ESI),
-            EDI: this.engine.reg_read_i32(UnicornModule.X86_REG_EDI),
-            EBP: this.engine.reg_read_i32(UnicornModule.X86_REG_EBP),
-            ESP: this.engine.reg_read_i32(UnicornModule.X86_REG_ESP),
-            EIP: this.engine.reg_read_i32(UnicornModule.X86_REG_EIP),
-            EFLAGS: this.engine.reg_read_i32(UnicornModule.X86_REG_EFLAGS)
-          };
+        // Use 64-bit register definitions from X86_64_REGISTERS array
+        const registers = {};
+        for (const reg of X86_64_REGISTERS) {
+          registers[reg.name] = this.engine.reg_read_i64(reg.constant);
         }
+        return registers;
       }
       
       getStackContents(count = 16) {
@@ -523,7 +520,7 @@
           .map(([name, value]) => 
             `<div class="register">
               <span class="reg-name">${name}:</span>
-              <span class="reg-value">0x${value.toString(16).padStart(this.is64bit ? 16 : 8, '0')}</span>
+              <span class="reg-value">0x${value.toString(16).padStart(16, '0')}</span>
             </div>`
           ).join('');
         document.getElementById('registerGrid').innerHTML = regHTML;
@@ -533,8 +530,8 @@
         const stack = this.getStackContents();
         const stackHTML = stack.map(item => 
           `<div class="stack-item">
-            <span class="stack-addr">0x${item.address.toString(16).padStart(this.is64bit ? 16 : 8, '0')}:</span>
-            <span class="stack-value">0x${item.value.toString(16).padStart(this.is64bit ? 16 : 8, '0')}</span>
+            <span class="stack-addr">0x${item.address.toString(16).padStart(16, '0')}:</span>
+            <span class="stack-value">0x${item.value.toString(16).padStart(16, '0')}</span>
           </div>`
         ).join('');
         document.getElementById('stackView').innerHTML = stackHTML;
@@ -771,6 +768,47 @@
           }
         }
         this.currentHighlightedFunction = null;
+        
+        // Also clear assembly highlighting for consistency
+        this.clearAssemblyHighlight();
+      }
+      
+      clearAssemblyHighlight() {
+        const disasmDiv = document.getElementById('disassembly');
+        if (!disasmDiv) return;
+        
+        // Get original disassembly text if it's stored
+        let originalText = disasmDiv.getAttribute('data-original-text');
+        if (originalText) {
+          // Restore original plain text
+          disasmDiv.textContent = originalText;
+        } else {
+          // Fallback: extract text from HTML and clean it
+          const htmlContent = disasmDiv.innerHTML;
+          if (htmlContent.includes('<div')) {
+            // Extract text from HTML structure
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            const textLines = [];
+            const divElements = tempDiv.querySelectorAll('div');
+            
+            if (divElements.length > 0) {
+              divElements.forEach(div => {
+                textLines.push(div.textContent);
+              });
+              const cleanText = textLines.join('\n');
+              disasmDiv.textContent = cleanText;
+              // Store for future use
+              disasmDiv.setAttribute('data-original-text', cleanText);
+            }
+          }
+        }
+        
+        // IMPORTANT: Clear the stored data-original-text attribute so it gets refreshed 
+        // with new assembly code on the next test
+        disasmDiv.removeAttribute('data-original-text');
+        
+        console.log('✓ Assembly highlighting cleared and data-original-text reset');
       }
     }
     
@@ -780,7 +818,7 @@
         const disasm = new cs.Capstone(arch, mode);
         const instructions = disasm.disasm(bytes, baseAddr);
         
-        let output = `\n=== ${sectionName} Section Disassembly ===\n`;
+        let output = `=== ${sectionName} Section Disassembly ===`;
         
         // Create a map of addresses to function names for quick lookup
         const functionMap = new Map();
@@ -800,7 +838,7 @@
           // Check if this instruction starts a function
           if (functionMap.has(insn.address)) {
             const functionName = functionMap.get(insn.address);
-            output += `\n<${functionName}>:\n`;
+            output += `<${functionName}>:\n`;
           }
           
           // Format the basic instruction
@@ -836,7 +874,7 @@
     }
 
     // Helper function to extract function symbols from ELF
-    function extractFunctionSymbols(parsed, textBaseAddr) {
+    function extractFunctionSymbols(parsed, textBaseAddr, enableLogging = true) {
       const {sectionHeaders, view} = parsed;
       const functions = [];
       
@@ -852,10 +890,12 @@
         }
         
         if (!symtabSection || !strtabSection || symtabSection.size === 0) {
-          console.log('No symbol table found for function extraction');
-          console.log('Available sections:', sectionHeaders.map(sh => sh.name));
-          console.log('symtab found:', !!symtabSection, 'strtab found:', !!strtabSection);
-          if (symtabSection) console.log('symtab size:', symtabSection.size);
+          if (enableLogging) {
+            console.log('No symbol table found for function extraction');
+            console.log('Available sections:', sectionHeaders.map(sh => sh.name));
+            console.log('symtab found:', !!symtabSection, 'strtab found:', !!strtabSection);
+            if (symtabSection) console.log('symtab size:', symtabSection.size);
+          }
           return functions;
         }
         
@@ -902,26 +942,32 @@
         
         // Sort functions by address for better display
         functions.sort((a, b) => a.address - b.address);
-        console.log(`Extracted ${functions.length} function symbols:`, functions);
-        
-        // Debug: show what we found
-        if (functions.length > 0) {
-          console.log('Function symbols found:');
-          functions.forEach(func => {
-            console.log(`  ${func.name} at 0x${func.address.toString(16)} (offset: 0x${func.offset.toString(16)})`);
-          });
-        } else {
-          console.log('No function symbols found - labels will not be displayed');
+        if (enableLogging) {
+          console.log(`Extracted ${functions.length} function symbols:`, functions);
+          
+          // Debug: show what we found
+          if (functions.length > 0) {
+            console.log('Function symbols found:');
+            functions.forEach(func => {
+              console.log(`  ${func.name} at 0x${func.address.toString(16)} (offset: 0x${func.offset.toString(16)})`);
+            });
+          } else {
+            console.log('No function symbols found - labels will not be displayed');
+          }
         }
         
       } catch (error) {
-        console.log('Error extracting function symbols:', error);
+        if (enableLogging) {
+          console.log('Error extracting function symbols:', error);
+        }
       }
       
       // If no symbols found, try pattern-based detection as fallback
       if (functions.length === 0) {
-        console.log('No symbols found, attempting pattern-based function detection');
-        return detectFunctionsFromAssembly(parsed, textBaseAddr);
+        if (enableLogging) {
+          console.log('No symbols found, attempting pattern-based function detection');
+        }
+        return detectFunctionsFromAssembly(parsed, textBaseAddr, enableLogging);
       }
       
       return functions;
@@ -1245,7 +1291,7 @@
               functionSymbols = mapStoredNamesToAddresses(window.compiledFunctionNames, parsed, disasmBaseAddr);
             } else {
               console.log(`Auto-load: Extracting function symbols with textBaseAddr: 0x${disasmBaseAddr.toString(16)}, isObjectFile: ${isObjectFile}`);
-              functionSymbols = extractFunctionSymbols(parsed, disasmBaseAddr);
+              functionSymbols = extractFunctionSymbols(parsed, disasmBaseAddr, false);
             }
             
             disasmOutput += disassembleSection(bytes, arch, mode, disasmBaseAddr, sh.name, functionSymbols);
@@ -1868,16 +1914,15 @@
     
     // Function to update debugger display with default values
     function updateDebuggerDisplay() {
-      // Reset register display
+      // Reset register display using X86_64_REGISTERS array
       const registerGrid = document.getElementById('registerGrid');
       if (registerGrid) {
-        const registers = ['RAX', 'RBX', 'RCX', 'RDX', 'RSI', 'RDI', 'RSP', 'RBP', 'RIP', 'RFLAGS'];
         registerGrid.innerHTML = '';
-        registers.forEach(regName => {
+        X86_64_REGISTERS.forEach(reg => {
           const regDiv = document.createElement('div');
           regDiv.className = 'register';
           regDiv.innerHTML = `
-            <span class="reg-name">${regName}:</span>
+            <span class="reg-name">${reg.name}:</span>
             <span class="reg-value">0x0000000000000000</span>
           `;
           registerGrid.appendChild(regDiv);
@@ -1901,6 +1946,9 @@
       }
     }
     
-   
+    // Initialize register display on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateDebuggerDisplay();
+    });
     
 
