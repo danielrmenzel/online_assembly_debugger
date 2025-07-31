@@ -79,28 +79,31 @@
         // Hook for halt instruction - use the breakpoint instead since HOOK_INSN may not be available
         // Dynamic exit breakpoints will handle program termination
         
-        // Hook for unmapped memory
+        // Hook for unmapped memory - report error and fail
         this.engine.hook_add(UnicornModule.HOOK_MEM_UNMAPPED, (engine, type, address, size) => {
-          console.log(`Unmapped memory access: type=${type}, addr=0x${address.toString(16)}, size=${size}`);
-          try {
-            // Skip NULL pointer accesses - these are usually invalid
-            if (address === 0) {
-              console.log('Detected NULL pointer access - stopping execution');
-              this.isPaused = true;
-              this.isRunning = false;
-              return false;
-            }
-            
-            const alignedAddr = Math.floor(address / 0x1000) * 0x1000;
-            engine.mem_map(alignedAddr, 0x1000, UnicornModule.PROT_ALL);
-            console.log(`Mapped dummy page at 0x${alignedAddr.toString(16)}`);
-            return true;
-          } catch(e) {
-            console.log(`Failed to map dummy page: ${e.message}`);
+          const rip = this.engine.reg_read_i64(UnicornModule.X86_REG_RIP);
+          
+          // Check if this is program completion (return to null address)
+          if (address === 0 && rip === 0) {
+            console.log('Program completed successfully (returned to address 0x0)');
             this.isPaused = true;
             this.isRunning = false;
             return false;
           }
+          
+          // Log genuine memory access errors
+          const accessType = type === UnicornModule.MEM_READ ? 'READ' : 
+                           type === UnicornModule.MEM_WRITE ? 'WRITE' : 
+                           type === UnicornModule.MEM_FETCH ? 'FETCH' : 'UNKNOWN';
+          
+          console.error(`MEMORY ACCESS ERROR: ${accessType} at 0x${address.toString(16)} (size: ${size})`);
+          console.error(`This indicates unmapped memory access - execution cannot continue`);
+          console.error(`Current RIP: 0x${rip.toString(16)}`);
+          
+          this.isPaused = true;
+          this.isRunning = false;
+          
+          return false; // Do not continue execution
         });
         
       }
@@ -145,24 +148,28 @@
           // Clear last logged address for next instruction
           this.lastLoggedAddress = null;
           
-          // Log detailed debug info to console
-          this.logDebugState(startAddr, instructionText);
-          
           this.updateUI();
           this.highlightCurrentLine();
           this.highlightCFunction(this.currentAddress);
         } catch(e) {
-          console.error('Step error:', e);
           const errorMsg = e.message || e.toString();
+          const pc = this.getCurrentPC();
           
           // Check for specific error types
           if (errorMsg.includes('UC_ERR_INSN_INVALID')) {
-            const pc = this.getCurrentPC();
+            console.error('Step error:', e);
             document.getElementById('emuOutput').textContent += `Invalid instruction at 0x${pc.toString(16)}\n`;
           } else if (errorMsg.includes('UC_ERR_FETCH_UNMAPPED')) {
-            const pc = this.getCurrentPC();
-            document.getElementById('emuOutput').textContent += `Unmapped instruction fetch at 0x${pc.toString(16)}\n`;
+            // Check if this is program completion (PC at 0x0)
+            if (pc === 0) {
+              console.log('Program execution completed successfully');
+              document.getElementById('emuOutput').textContent += `Program completed successfully\n`;
+            } else {
+              console.error('Step error:', e);
+              document.getElementById('emuOutput').textContent += `Unmapped instruction fetch at 0x${pc.toString(16)}\n`;
+            }
           } else {
+            console.error('Step error:', e);
             document.getElementById('emuOutput').textContent += `Step error: ${errorMsg}\n`;
           }
           
@@ -271,6 +278,7 @@
         const fabRun = document.querySelector('.fab-run');
         const fabStop = document.querySelector('.fab-stop');
         const fabStep = document.querySelector('.fab-step');
+        const fabReset = document.querySelector('.fab-reset');
         
         if (this.isRunning) {
           // During execution: hide run, show stop, disable step/reset
@@ -282,6 +290,7 @@
           if (fabRun) { fabRun.style.display = 'none'; }
           if (fabStop) { fabStop.style.display = 'block'; fabStop.disabled = false; }
           if (fabStep) { fabStep.disabled = true; fabStep.style.opacity = '0.5'; }
+          if (fabReset) { fabReset.disabled = true; fabReset.style.opacity = '0.5'; }
         } else {
           // When stopped: show run, hide stop, enable step/reset
           if (runBtn) { runBtn.style.display = 'inline-block'; runBtn.disabled = false; }
@@ -292,6 +301,7 @@
           if (fabRun) { fabRun.style.display = 'block'; fabRun.disabled = false; }
           if (fabStop) { fabStop.style.display = 'none'; }
           if (fabStep) { fabStep.disabled = false; fabStep.style.opacity = '1'; }
+          if (fabReset) { fabReset.disabled = false; fabReset.style.opacity = '1'; }
         }
       }
       
@@ -1165,6 +1175,45 @@
     let parsed;
     let unicornDebugger = null;
     
+    // Cleanup function to properly destroy previous debugger session
+    function cleanupDebugSession() {
+      if (unicornDebugger) {
+        try {
+          // Stop any running execution
+          if (unicornDebugger.isRunning) {
+            unicornDebugger.stopExecution();
+          }
+          
+          // Destroy the Unicorn engine if it exists
+          if (unicornDebugger.engine) {
+            unicornDebugger.engine.close();
+          }
+          
+          console.log('Previous debugger session cleaned up');
+        } catch (error) {
+          console.log('Error during cleanup (non-critical):', error.message);
+        }
+        
+        // Reset the global reference
+        unicornDebugger = null;
+      }
+      
+      // Reset UI states
+      const stepBtn = document.getElementById('stepBtn');
+      const runBtn = document.getElementById('runBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      
+      if (stepBtn) stepBtn.disabled = true;
+      if (runBtn) runBtn.disabled = true;
+      if (resetBtn) resetBtn.disabled = true;
+      
+      // Clear output area
+      const emuOutput = document.getElementById('emuOutput');
+      if (emuOutput) {
+        emuOutput.textContent = 'Click "🔧 Debug" to initialize the debugger...';
+      }
+    }
+    
     // Global storage for function names from compile step
     window.compiledFunctionNames = null;
     window.lastCompiledCode = null; // Track what code was compiled
@@ -1205,10 +1254,16 @@
             }
           });
           
-          document.getElementById('disassembly').textContent = disasmOutput || 'No executable sections found';
+          if (!disasmOutput) {
+            throw new Error('Failed to disassemble: No executable sections found in file');
+          }
+          document.getElementById('disassembly').textContent = disasmOutput;
           document.getElementById('runUnicorn').disabled=false;
         }catch(err){
-          showJSON({error:err.message});
+          console.error('File processing failed:', err);
+          document.getElementById('disassembly').textContent = `ERROR: ${err.message}`;
+          document.getElementById('runUnicorn').disabled = true;
+          throw err; // Re-throw to prevent silent failure
         }
       };
       r.readAsArrayBuffer(f);
@@ -1324,6 +1379,9 @@
         document.getElementById('emuOutput').textContent = 'Error: Unicorn not loaded';
         return;
       }
+      
+      // Clean up any previous debugger session
+      cleanupDebugSession();
       
       // Extract data from parsed ELF first
       const {sectionHeaders, programHeaders, view, elfHeader} = parsed;
@@ -1879,6 +1937,11 @@
       document.getElementById('runBtn').disabled = false;
       document.getElementById('resetBtn').disabled = false;
       // document.getElementById('addBreakpointBtn').disabled = false;
+      
+      // Sync FAB button states
+      if (typeof syncFABStates === 'function') {
+        syncFABStates();
+      }
       
       // Update initial state
       unicornDebugger.updateUI();

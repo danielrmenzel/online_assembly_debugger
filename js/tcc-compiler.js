@@ -4,13 +4,13 @@
     let resultData = null;
     let resultType = null;
 
-    // Initialize TinyCC when page loads
+    // Initialize TinyCC on page load
     window.addEventListener('load', async function() {
             try {
                 tccModule = await TccModule();
                 
                 isModuleReady = true;
-                document.getElementById('quickBtn').disabled = false;
+                document.getElementById('compBtn').disabled = false;
                 document.getElementById('linkBtn').disabled = false;
                 
                 console.log('TinyCC WebAssembly module loaded successfully');
@@ -28,99 +28,39 @@
         }
 
         function setupRuntimeFiles() {
-            // Ensure runtime files exist in the current directory where TinyCC expects them
-            try {
-                console.log('Setting up TinyCC runtime files...');
-                
-                // Check if files exist, if not create them
-                const runtimeFiles = ['crt1.o', 'crti.o', 'crtn.o'];
-                
-                for (const filename of runtimeFiles) {
-                    try {
-                        tccModule.FS.stat(filename);
-                        console.log(`✓ ${filename} already exists`);
-                    } catch (e) {
-                        // File doesn't exist, copy from lib directory or create minimal one
-                        try {
-                            const data = tccModule.FS.readFile('lib/' + filename);
-                            tccModule.FS.writeFile(filename, data);
-                            console.log(`✓ Copied ${filename} from lib/`);
-                        } catch (e2) {
-                            // Create minimal but functional ELF object file
-                            console.log(`⚠️ Creating minimal ${filename}`);
-                            const elfHeader = new Uint8Array([
-                                0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00,  // ELF magic (64-bit)
-                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x01, 0x00, 0x3e, 0x00, 0x01, 0x00, 0x00, 0x00,  // x86_64 relocatable
-                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
-                                0x00, 0x00, 0x40, 0x00, 0x01, 0x00, 0x00, 0x00
-                            ]);
-                            tccModule.FS.writeFile(filename, elfHeader);
-                        }
-                    }
-                }
-                
-                // Handle libc.a - critical for linking
+            // Verify required runtime files exist - fail if they don't
+            console.log('Verifying TinyCC runtime files...');
+            
+            const requiredFiles = ['crt1.o', 'crti.o', 'crtn.o', 'libc.a', 'libtcc1.a'];
+            const missingFiles = [];
+            
+            for (const filename of requiredFiles) {
                 try {
-                    tccModule.FS.stat('libc.a');
-                    console.log('✓ libc.a already exists');
+                    tccModule.FS.stat(filename);
+                    console.log(`✓ ${filename} found`);
                 } catch (e) {
+                    // Try to copy from lib directory
                     try {
-                        const data = tccModule.FS.readFile('lib/libc.a');
-                        tccModule.FS.writeFile('libc.a', data);
-                        console.log('✓ Copied libc.a from lib/');
+                        const data = tccModule.FS.readFile('lib/' + filename);
+                        tccModule.FS.writeFile(filename, data);
+                        console.log(`✓ Copied ${filename} from lib/`);
                     } catch (e2) {
-                        // Create minimal archive with ar header
-                        console.log('⚠️ Creating minimal libc.a');
-                        const archive = new Uint8Array([
-                            0x21, 0x3C, 0x61, 0x72, 0x63, 0x68, 0x3E, 0x0A,  // "!<arch>\n"
-                            // Add minimal archive entry
-                            0x2F, 0x2F, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,  // "//      "
-                            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,  // "        "
-                            0x30, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,  // "0       "
-                            0x20, 0x20, 0x20, 0x20, 0x30, 0x20, 0x20, 0x20,  // "    0   "
-                            0x20, 0x20, 0x30, 0x20, 0x20, 0x20, 0x20, 0x20,  // "  0     "
-                            0x20, 0x20, 0x36, 0x30, 0x0A, 0x60, 0x0A        // "  60\n`\n"
-                        ]);
-                        tccModule.FS.writeFile('libc.a', archive);
+                        missingFiles.push(filename);
+                        console.error(`✗ Missing required file: ${filename}`);
                     }
                 }
-                
-                // Handle libtcc1.a - TinyCC's runtime library
-                try {
-                    tccModule.FS.stat('libtcc1.a');
-                    console.log('✓ libtcc1.a already exists');
-                } catch (e) {
-                    try {
-                        const data = tccModule.FS.readFile('lib/libtcc1.a');
-                        tccModule.FS.writeFile('libtcc1.a', data);
-                        console.log('✓ Copied libtcc1.a from lib/');
-                    } catch (e2) {
-                        // Create minimal libtcc1.a
-                        console.log('⚠️ Creating minimal libtcc1.a');
-                        const archive = new Uint8Array([
-                            0x21, 0x3C, 0x61, 0x72, 0x63, 0x68, 0x3E, 0x0A,
-                            0x2F, 0x2F, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-                            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-                            0x30, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-                            0x20, 0x20, 0x20, 0x20, 0x30, 0x20, 0x20, 0x20,
-                            0x20, 0x20, 0x30, 0x20, 0x20, 0x20, 0x20, 0x20,
-                            0x20, 0x20, 0x36, 0x30, 0x0A, 0x60, 0x0A
-                        ]);
-                        tccModule.FS.writeFile('libtcc1.a', archive);
-                    }
-                }
-                
-                console.log('Runtime files setup complete');
-                
-            } catch (error) {
-                console.log('Runtime setup error:', error);
             }
+            
+            if (missingFiles.length > 0) {
+                const errorMsg = `Runtime files missing: ${missingFiles.join(', ')}. Cannot proceed with linking.`;
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
+            
+            console.log('All runtime files verified successfully');
         }
 
-        function quickCompileExact(mode = 'compile') {
+        function compileFromSource(mode = 'compile') {
             const sourceCode = getSourceCode();
             if (!sourceCode.trim()) {
                 updateOutput('Please enter some C code to compile.');
@@ -222,13 +162,24 @@ void _start() {
                 }
                 tccModule._free(argv);
                 
-                let output = `📊 TinyCC exit code: ${result}\n\n`;
+                // Check if we already have output (for append mode)
+                const outputDiv = document.getElementById('compilationOutput');
+                const hasExistingOutput = outputDiv.textContent.trim() !== '' && 
+                                        outputDiv.textContent !== 'Please enter some C code to compile.' &&
+                                        outputDiv.textContent !== 'Cleared output. You can now compile again.';
+                
+                let output = ``;
+                
+                // Add mode header
+                if (mode === 'compile') {
+                    output += `COMPILE MODE - TinyCC exit code: ${result}\n`;
+                } else {
+                    output += `LINK MODE - TinyCC exit code: ${result}\n`;
+                }
                 
                 // If linking failed, suggest object compilation instead
                 if (result !== 0 && mode === 'link') {
-                    output += `⚠️ Linking failed - this is common with WebAssembly TinyCC.\n`;
-                    output += `💡 Try using "⚡ Compile (.o)" instead for object file debugging.\n`;
-                    output += `📋 Object files work perfectly with the debugger and show clean assembly.\n\n`;
+                    output += `✗ Linking failed.\n`;
                 }
                 
                 if (result === 0) {
@@ -237,19 +188,16 @@ void _start() {
                         resultType = mode === 'link' ? 'linked_executable' : 'object';
                         
                         output += `✓ SUCCESS! Generated: ${outputFile}\n`;
-                        output += `📏 File size: ${resultData.length} bytes\n\n`;
+                        output += `File size: ${resultData.length} bytes\n\n`;
                         
                         // Validate ELF format
                         if (resultData.length >= 4) {
                             const magic = String.fromCharCode(...resultData.slice(0, 4));
                             if (magic === '\x7fELF') {
                                 if (mode === 'link') {
-                                    output += `✅ Valid ELF executable with proper entry points!\n`;
-                                    output += `� This will have better symbol resolution and cleaner assembly for debugging.\n`;
-                                    output += `�📥 Click "Download" or load into debugger!`;
+                                    output += `✓ Valid ELF executable!\n`;
                                 } else {
-                                    output += `✅ Valid ELF object file!\n`;
-                                    output += `📥 Click "Download" to get your .o file!`;
+                                    output += `✓ Valid ELF object file!\n`;
                                 }
                                 
                                 document.getElementById('downloadBtn').disabled = false;
@@ -266,14 +214,12 @@ void _start() {
                         const autoLoadSuccess = autoLoadCompiledFile(resultData, mode);
                         if (autoLoadSuccess) {
                             if (mode === 'link') {
-                                output += `\n🔄 AUTO-LOADED: Linked executable loaded into debugger!`;
-                                output += `\n📋 You should see better symbols and entry points - Click "🔧 Initialize Debugger"`;
+                                output += `\n✓ AUTO-LOADED: Linked executable loaded into debugger!`;
                             } else {
-                                output += `\n🔄 AUTO-LOADED: Object file automatically loaded into debugger!`;
-                                output += `\n📋 Ready for debugging - Click "🔧 Initialize Debugger"`;
+                                output += `\n✓ AUTO-LOADED: Object file automatically loaded into debugger!`;
                             }
                         } else {
-                            output += `\n⚠️ AUTO-LOAD FAILED: Please manually upload the downloaded file`;
+                            output += `\n✗ AUTO-LOAD FAILED: Please manually upload the downloaded file`;
                         }
                         
                     } catch (readError) {
@@ -286,7 +232,7 @@ void _start() {
                     document.getElementById('downloadBtn').disabled = true;
                 }
                 
-                updateOutput(output);
+                updateOutput(output, hasExistingOutput);
                 
             } catch (error) {
                 console.error('Quick compile error:', error);
@@ -329,7 +275,7 @@ void _start() {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                updateOutput(`🎉 Success! ${resultType} file downloaded!\\n\\n` +
+                updateOutput(`🎉 Success! ${resultType} file downloaded!\n\n` +
                             `You can now upload it to the debugger.`);
                             
                 updateStatus('ready', `🎉 ${resultType} file downloaded successfully!`);
@@ -340,21 +286,19 @@ void _start() {
         }
 
 
-        function updateOutput(message) {
+        function updateOutput(message, append = false) {
             const outputDiv = document.getElementById('compilationOutput');
-            outputDiv.textContent = message;
+            if (append) {
+                outputDiv.textContent += '\n' + message;
+            } else {
+                outputDiv.textContent = message;
+            }
         }
 
         function clearOutput() {
-            updateOutput('Click a compilation option to start...');
+            updateOutput('Cleared output. You can now compile again.');
             document.getElementById('downloadBtn').disabled = true;
             resultData = null;
             resultType = null;
-            fullReset(); // Use full reset for clear button
+            fullReset();
         }
-
-       
-        
- 
-
-  

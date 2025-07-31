@@ -1,6 +1,10 @@
    // ============================================================================
     // TESTING FRAMEWORK FUNCTIONS
     // ============================================================================
+    
+    // Global test control flag
+    let testStopRequested = false;
+    
     // Test Categories Organization
     const testCategories = {
       unit: ['simple', 'add', 'factorial', 'sum_up_to'],
@@ -1155,7 +1159,7 @@ int main() {
     
     // Helper function to clear all highlighting states
     function clearAllHighlighting() {
-      console.log('🧹 Clearing all highlighting states for new test...');
+      console.log('Clearing all highlighting states for new test...');
       
       // Clear assembly highlighting directly
       const disasmDiv = document.getElementById('disassembly');
@@ -1196,7 +1200,7 @@ int main() {
         unicornDebugger.currentHighlightedFunction = null;
       }
       
-      console.log('✅ All highlighting states cleared');
+      console.log('All highlighting states cleared');
     }
     
     // Load test code into editor
@@ -1273,7 +1277,7 @@ int main() {
           console.log('🔨 Compiling test code...');
           await new Promise((resolve, reject) => {
             try {
-              quickCompileExact();
+              compileFromSource();
               setTimeout(resolve, 1000); // Wait for compilation
             } catch (error) {
               reject(error);
@@ -1343,7 +1347,7 @@ int main() {
         console.log('🔨 Compiling custom test code...');
         await new Promise((resolve, reject) => {
           try {
-            quickCompileExact();
+            compileFromSource();
             console.log('✅ Compilation initiated for custom test');
             setTimeout(resolve, 1000); // Wait for compilation
           } catch (error) {
@@ -1418,6 +1422,14 @@ ${'='.repeat(30)}`;
       let failed = 0;
       
       for (const testName of validTests) {
+        // Check if stop was requested
+        if (testStopRequested) {
+          testResults.innerHTML += `\n🛑 Tests stopped by user request`;
+          showStatus('🛑 Tests stopped by user', 'warning');
+          testStopRequested = false; // Reset flag
+          return;
+        }
+        
         console.log(`\n🧪 Running test: ${testName}`);
         
         try {
@@ -1458,7 +1470,7 @@ ${'='.repeat(30)}`;
           console.log(`🔨 Compiling ${testName}...`);
           await new Promise((resolve, reject) => {
             try {
-              quickCompileExact();
+              compileFromSource();
               console.log(`✅ Compilation initiated for ${testName}`);
               setTimeout(resolve, 1000); // Wait longer for compilation
             } catch (error) {
@@ -1551,6 +1563,14 @@ ${'='.repeat(35)}`;
       let overallFailed = 0;
       
       for (const category of categories) {
+        // Check if stop was requested
+        if (testStopRequested) {
+          testResults.innerHTML += `\n🛑 Tests stopped by user request`;
+          showStatus('🛑 Tests stopped by user', 'warning');
+          testStopRequested = false; // Reset flag
+          return;
+        }
+        
         try {
           console.log(`\n📂 Starting category: ${category}`);
           
@@ -1572,6 +1592,14 @@ ${'='.repeat(25)}`;
           
           // Run each test in the category with full UI updates
           for (const testName of validTests) {
+            // Check if stop was requested
+            if (testStopRequested) {
+              testResults.innerHTML += `\n🛑 Tests stopped by user request`;
+              showStatus('🛑 Tests stopped by user', 'warning');
+              testStopRequested = false; // Reset flag
+              return;
+            }
+            
             console.log(`\n🧪 Running ${category}/${testName}`);
             
             try {
@@ -1603,7 +1631,7 @@ ${'='.repeat(25)}`;
               
               // Compile
               console.log(`🔨 Compiling ${testName}...`);
-              quickCompileExact();
+              compileFromSource();
               await new Promise(resolve => setTimeout(resolve, 1000));
               
               // Execute
@@ -1694,6 +1722,11 @@ ${'='.repeat(35)}`;
     
     // Update test progress
     function updateTestProgress(current, total) {
+      // Don't show progress bar if tests were stopped
+      if (testStopRequested) {
+        return;
+      }
+      
       const progressBar = document.getElementById('test-progress-bar');
       const progressContainer = document.getElementById('test-progress');
       
@@ -1737,7 +1770,7 @@ ${'='.repeat(35)}`;
       try {
         console.log('🔨 Starting compilation...');
         // Compile the current code
-        quickCompileExact();
+        compileFromSource();
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait longer for compilation
         console.log('✅ Compilation completed');
         
@@ -1935,6 +1968,24 @@ Status: ❌ FAIL
           }
         }
       });
+    }
+    
+    // Stop all running tests
+    function stopAllTests() {
+      testStopRequested = true;
+      
+      // Immediately hide progress bar when stopping tests
+      const progressContainer = document.getElementById('test-progress');
+      const progressBar = document.getElementById('test-progress-bar');
+      if (progressContainer) {
+        progressContainer.style.display = 'none';
+      }
+      if (progressBar) {
+        progressBar.style.width = '0%';
+      }
+      
+      showStatus('🛑 Test stop requested - waiting for current test to complete...', 'warning');
+      console.log('🛑 Test stop requested');
     }
     
     // ============================================================================
