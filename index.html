@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C Compiler & Debugger Workflow</title>
+
+  <!-- Link to External CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js"></script>
+
+  <!-- Terminal-style dropdown styling -->
+  <style>
+    /* Terminal-style dropdown menus for testing framework */
+    .test-category select {
+      background: black !important;
+      color: white !important;
+      border: 2px solid #00ff00 !important;
+      border-radius: 8px;
+      padding: 12px 16px;
+      min-width: 220px;
+      /* Increased from 180px to align button borders */
+      width: 100%;
+      /* Take full available width */
+      max-width: 280px;
+      /* Prevent it from getting too wide */
+      font-size: 12px;
+      font-family: inherit;
+      height: 48px;
+      /* Match control button height */
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Dropdown options styling */
+    .test-category select option {
+      background: black !important;
+      color: white !important;
+    }
+
+    /* Hover effect for options */
+    .test-category select option:hover {
+      background: black !important;
+      color: #00ff00 !important;
+    }
+
+    /* Focus state for dropdown */
+    .test-category select:focus {
+      outline: none;
+      border-color: #00ff00;
+      box-shadow: 0 0 5px #00ff00;
+    }
+
+    /* Fix badge styling - all badges should be light green with black text */
+    .badge-info,
+    .badge-success, 
+    .badge-error,
+    .badge-warning {
+      background: #90EE90 !important; /* Light green */
+      color: #000000 !important; /* Black text */
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-content">
+      <div class="app-title-section">
+        <h1 class="app-title">
+          <!-- <span class="title-icon">🚀</span> -->
+          C Compiler & Debugger Workflow
+        </h1>
+        <!-- <p class="app-subtitle">TinyCC WebAssembly + Unicorn Engine Debugger</p> -->
+      </div>
+      <div class="header-controls">
+        <!-- <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button> -->
+        <button class="help-btn" onclick="showHelp()">❓ Help</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-content">
+    <!-- Floating Action Buttons -->
+    <div class="floating-actions">
+      <div class="tooltip">
+        <button class="fab fab-compile" onclick="quickCompileExact('compile')">⚡</button>
+        <span class="tooltiptext">Compile to .o</span>
+      </div>
+      <div class="tooltip">
+        <button class="fab fab-link" onclick="quickCompileExact('link')">🔗</button>
+        <span class="tooltiptext">Link</span>
+      </div>
+      <div class="tooltip">
+        <button class="fab fab-debug" onclick="initializeDebugger()">🔧</button>
+        <span class="tooltiptext">Debug</span>
+      </div>
+      <div class="tooltip">
+        <button class="fab fab-step" onclick="stepInstruction()">⏭️</button>
+        <span class="tooltiptext">Step Instruction</span>
+      </div>
+      <div class="tooltip">
+        <button class="fab fab-run" onclick="runUntilHalt()" style="display: none;">▶️</button>
+        <span class="tooltiptext">Run Until Halt</span>
+      </div>
+      <div class="tooltip">
+        <button class="fab fab-stop" onclick="stopExecution()" style="display: none;">⏹️</button>
+        <span class="tooltiptext">Stop Execution</span>
+      </div>
+    </div>
+
+    <!-- Collapsible Sections with Improved Styling -->
+    <div class="collapsible-section">
+      <div class="collapsible-header" onclick="toggleCollapsible(this)">
+        📝 Step 1: Write & Compile C Code
+        <span class="collapse-arrow">▼</span>
+      </div>
+      <div class="collapsible-content">
+        <div class="editor-container">
+          <div class="editor-panel">
+            <h3>C Source Code</h3>
+            <textarea id="sourceCode">int add(int a, int b) {
+    return a + b;
+}
+
+int subtract(int a, int b) {
+    return a - b;
+}
+
+int main() {
+    volatile int x = 20;
+    volatile int y = 10;
+    volatile int sum = add(x, y);
+    volatile int diff = subtract(x, y);
+    return sum + diff;
+}</textarea>
+
+            <h3 style="margin-top: 20px;">Compilation Log</h3>
+            <div id="compilationOutput" class="output" style="margin-top: 10px;">Click a compilation option to start...
+            </div>
+          </div>
+          <div class="editor-panel">
+            <h3>Assembly Instructions</h3>
+            <div id="disassembly" class="output">Disassembly will appear here after loading object file...</div>
+          </div>
+          <!-- <div class="debugger-panel" id="debuggerColumn"> -->
+            <!-- Combined Registers and Stack Container -->
+            <div class="debugger-section">
+
+              <!-- Registers Section -->
+              <div class="register-section">
+                <h3>Registers</h3>
+                <div id="registerGrid" class="register-grid">
+                  <div class="register">
+                    <span class="reg-name">RAX:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RBX:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RCX:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RDX:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RSI:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RDI:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RSP:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RBP:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RIP:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                  <div class="register">
+                    <span class="reg-name">RFL:</span>
+                    <span class="reg-value">0x0000000000000000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stack Panel -->
+              <div class="stack-section" style="margin-top: 0px;">
+                <h3>Stack</h3>
+                <div id="stackView" class="stack-view">
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000000:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000000:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000008:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000010:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000018:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000020:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000028:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000030:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000038:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000040:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000048:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000050:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000058:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000060:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000068:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000070:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                  <div class="stack-item">
+                    <span class="stack-addr">0x0000000000000078:</span>
+                    <span class="stack-value">0x0000000000000000</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <!-- </div> -->
+        </div>
+        
+        <!-- Button container moved outside grid layout for full width -->
+        <div class="button-status-container">
+          <div class="button-group">
+            <button id="quickBtn" class="button-style" onclick="quickCompileExact('compile')" disabled>⚡ Compile</button>
+            <button id="linkBtn" class="button-style" onclick="quickCompileExact('link')" disabled>🔗 Link</button>
+            <button id="downloadBtn" class="button-style" onclick="downloadResult()" disabled>📥 Download</button>
+            <button class="button-style" onclick="clearOutput()">🗑 Clear</button>
+
+            <!-- File input styled as button -->
+            <label for="fileInput" class="file-input-label button-style">
+              📂 Upload .o
+              <input type="file" id="fileInput" accept=".o,.elf" style="display: none;" />
+            </label>
+
+            <button id="runUnicorn" class="button-style" disabled>🔧 Debug</button>
+            <button id="stepBtn" class="control-btn button-style" disabled>⏭️ Step</button>
+            <button id="runBtn" class="control-btn button-style" disabled>▶️ Run</button>
+            <button id="stopBtn" class="control-btn button-style" disabled style="display: none;">⏹️ Stop</button>
+            <button id="resetBtn" class="control-btn button-style" disabled>🔄 Reset</button>
+          </div>
+          <div id="status" class="status ready" data-status="ready">
+            TinyCC WebAssembly Ready
+          </div>
+        </div>
+      </div>
+
+      <!-- Testing Framework Section -->
+      <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          🧪 Step 2: Testing Framework
+          <span class="collapse-arrow">▲</span>
+        </div>
+        <div class="collapsible-content collapsed">
+          <div class="section-content testing-framework">
+            <!-- Progress Indicator -->
+            <div id="test-progress" class="progress-container"
+              style="display:none;border:2px solid var(--border-color);border-radius:0">
+              <div id="test-progress-bar" class="progress-bar" style="width:0%;height:6px;border-radius:0"></div>
+            </div>
+
+            <!-- Test Categories Grid -->
+            <div class="test-categories-grid">
+              <!-- Column 1: Unit, Edge Case Stress, Dynamic Validation -->
+              <div style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- Unit Tests Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">🧪</span>
+                    Unit Tests
+                    <span id="unit-test-count" class="badge badge-info">4 tests</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <select id="unit-test-dropdown" onchange="updateEditorFromDropdown('unit')"
+                      style="padding:8px; background:var(--bg-primary); color:var(--text-primary); border:2px solid var(--border-color); border-radius:8px; min-width:180px; font-size:12px; font-family:inherit">
+                      <option value="">Select unit test...</option>
+                      <option value="simple">Simple Test</option>
+                      <option value="add">Add Test</option>
+                      <option value="factorial">Factorial Test</option>
+                      <option value="sum_up_to">Sum Up To Test</option>
+                    </select>
+                    <button class="control-btn" onclick="runSelectedTest('unit')"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runAllTestsInCategory('unit')"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN ALL UNIT</button>
+                </div>
+
+                <!-- Edge Case Stress Tests Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">⚡</span>
+                    Edge Case Stress
+                    <span id="edge-case-stress-test-count" class="badge badge-warning">24 tests</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <select id="edge_case_stress-test-dropdown" onchange="updateEditorFromDropdown('edge_case_stress')"
+                      style="padding:8px; background:var(--bg-primary); color:var(--text-primary); border:2px solid var(--border-color); border-radius:8px; min-width:180px; font-size:12px; font-family:inherit">
+                      <option value="">Select stress test...</option>
+                      <option value="regex_static_modifier">Regex: Static Modifier</option>
+                      <option value="regex_return_pointer">Regex: Return Pointer</option>
+                      <option value="regex_inline_qualifier">Regex: Inline Qualifier</option>
+                      <option value="regex_multiple_qualifiers">Regex: Multiple Qualifiers</option>
+                      <option value="regex_function_attributes">Regex: Function Attributes</option>
+                      <option value="regex_complex_return_type">Regex: Complex Return Type</option>
+                      <option value="brace_string_literal">Brace: String Literal</option>
+                      <option value="brace_multiline_comments">Brace: Multiline Comments</option>
+                      <option value="brace_single_comments">Brace: Single Comments</option>
+                      <option value="multiline_function_def">Multiline Function Def</option>
+                      <option value="inline_single_line">Inline Single Line</option>
+                      <option value="complex_whitespace">Complex Whitespace</option>
+                      <option value="preprocessor_directives">Preprocessor Directives</option>
+                      <option value="multiple_returns">Multiple Returns</option>
+                      <option value="function_pointers">Function Pointers</option>
+                      <option value="multiple_functions_line">Multiple Functions Line</option>
+                      <option value="nested_function_calls">Nested Function Calls</option>
+                      <option value="variable_shadowing">Variable Shadowing</option>
+                      <option value="no_frame_pointer">No Frame Pointer</option>
+                      <option value="tail_call_optimization">Tail Call Optimization</option>
+                      <option value="inline_assembly">Inline Assembly</option>
+                      <option value="string_with_braces_complex">Complex String Braces</option>
+                      <option value="comment_braces_nested">Nested Comment Braces</option>
+                      <option value="weird_formatting_extreme">Extreme Formatting</option>
+                    </select>
+                    <button class="control-btn" onclick="runSelectedTest('edge_case_stress')"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runAllTestsInCategory('edge_case_stress')"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN ALL STRESS TESTS</button>
+                </div>
+
+                <!-- Dynamic Validation Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">🔬</span>
+                    Dynamic Validation
+                    <span id="dynamic-validation-test-count" class="badge badge-success">2 tests</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <select id="dynamic_validation-test-dropdown" onchange="updateEditorFromDropdown('dynamic_validation')"
+                      style="padding:8px; background:var(--bg-primary); color:var(--text-primary); border:2px solid var(--border-color); border-radius:8px; min-width:180px; font-size:12px; font-family:inherit">
+                      <option value="">Select validation test...</option>
+                      <option value="dynamic_complex_qualifiers">Complex Qualifiers Test</option>
+                      <option value="dynamic_diverse_features">Diverse Features Test</option>
+                    </select>
+                    <button class="control-btn" onclick="runSelectedTest('dynamic_validation')"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runAllTestsInCategory('dynamic_validation')"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN ALL VALIDATION</button>
+                </div>
+
+              </div>
+
+              <!-- Column 2: Advanced, Function Calls, Custom Test Runner -->
+              <div style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- Advanced Tests Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">🧠</span>
+                    Advanced Tests
+                    <span id="advanced-test-count" class="badge badge-info">21 tests</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <select id="advanced-test-dropdown" onchange="updateEditorFromDropdown('advanced')"
+                      style="padding:8px; background:var(--bg-primary); color:var(--text-primary); border:2px solid var(--border-color); border-radius:8px; min-width:180px; font-size:12px; font-family:inherit">
+                      <option value="">Select advanced test...</option>
+                      <option value="fibonacci">Fibonacci</option>
+                      <option value="prime">Prime</option>
+                      <option value="main_function">Main Function</option>
+                      <option value="factorial_large">Factorial Large</option>
+                      <option value="fibonacci_large">Fibonacci Large</option>
+                      <option value="sum_recursive">Sum Recursive</option>
+                      <option value="power_recursive">Power Recursive</option>
+                      <option value="gcd_recursive">GCD Recursive</option>
+                      <option value="while_loop">While Loop</option>
+                      <option value="nested_loops">Nested Loops</option>
+                      <option value="array_sum">Array Sum</option>
+                      <option value="array_max">Array Max</option>
+                      <option value="bubble_sort">Bubble Sort</option>
+                      <option value="binary_search">Binary Search</option>
+                      <option value="matrix_multiply">Matrix Multiply</option>
+                      <option value="quicksort_partition">Quicksort Partition</option>
+                      <option value="collatz">Collatz</option>
+                      <option value="triangle_numbers">Triangle Numbers</option>
+                      <option value="bitwise_ops">Bitwise Ops</option>
+                      <option value="bit_counting">Bit Counting</option>
+                      <option value="struct_test">Struct Test</option>
+                      <option value="heavy_computation">Heavy Computation</option>
+                    </select>
+                    <button class="control-btn" onclick="runSelectedTest('advanced')"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runAllTestsInCategory('advanced')"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN ALL ADVANCED</button>
+                </div>
+
+                <!-- Function Calls Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">🔄</span>
+                    Function Calls
+                    <span id="function-calls-test-count" class="badge badge-info">6 tests</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <select id="function_calls-test-dropdown" onchange="updateEditorFromDropdown('function_calls')"
+                      style="padding:8px; background:var(--bg-primary); color:var(--text-primary); border:2px solid var(--border-color); border-radius:8px; min-width:180px; font-size:12px; font-family:inherit">
+                      <option value="">Select function call test...</option>
+                      <option value="five_function_cycle">Five Function Cycle</option>
+                      <option value="four_function_cycle">Four Function Cycle</option>
+                      <option value="two_function_ping_pong">Two Function Ping Pong</option>
+                      <option value="three_function_with_loops">Three Function With Loops</option>
+                      <option value="function_call_in_loop">Function Call In Loop</option>
+                      <option value="three_function_original">Three Function Original</option>
+                    </select>
+                    <button class="control-btn" onclick="runSelectedTest('function_calls')"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runAllTestsInCategory('function_calls')"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN ALL FUNCTION CALLS</button>
+                </div>
+
+                <!-- Custom Test Runner Category -->
+                <div class="test-category">
+                  <h4>
+                    <span class="category-icon">🎯</span>
+                    Custom Test Runner
+                    <span class="badge badge-warning">Manual</span>
+                  </h4>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                    <div style="display:flex; flex-direction:column; flex:1; gap:4px;">
+                      <label style="color:var(--text-primary); font-size:12px; margin-bottom:2px;">Expected Return Value:</label>
+                      <input type="number" id="custom-expected-value" value="42" 
+                        style="width:100%; padding:4px; background:var(--bg-primary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
+                    </div>
+                    <button class="control-btn" onclick="runCustomTest()"
+                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  </div>
+                  <button class="control-btn" onclick="runCustomTest()"
+                    style="padding:6px 10px;font-size:11px;width:100%">RUN C SOURCE CODE</button>
+                </div>
+
+              </div>
+
+              <!-- Column 3: Test Results -->
+              <div class="test-category">
+                <h4>
+                  <span class="category-icon">📋</span>
+                  Test Log
+                  <span class="badge badge-info">Results</span>
+                </h4>
+
+                <div id="test-results"
+                  style="background:var(--bg-primary); padding:12px; font-family:'Courier New', monospace; color:var(--text-primary); min-height:200px; max-height:300px; overflow-y:auto; border:2px solid var(--border-color); border-radius:8px; white-space:pre-wrap; word-wrap:break-word; word-break:break-all; overflow-wrap:anywhere; box-shadow:inset 0 2px 4px rgba(0, 0, 0, 0.1); text-shadow:var(--retro-glow); margin-top:8px; width:100%; box-sizing:border-box"
+                  <strong>>> TEST RESULTS WILL APPEAR HERE...</strong>
+                </div>
+                <button class="control-btn" onclick="clearTestResults()"
+                  style="padding:6px 10px;font-size:11px;width:100%;margin-top:8px">CLEAR LOG</button>
+              </div>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="button-row"
+              style="justify-content:center; align-items:center; gap:15px; flex-wrap:wrap; margin-top:20px">
+              <button class="control-btn" onclick="runAllTestCategories()">RUN ALL TESTS</button>
+              <button class="control-btn" onclick="clearTestResults()">CLEAR RESULTS</button>
+              <div style="display:flex; align-items:center; gap:10px">
+                <label for="timeout-slider" style="color:var(--text-primary); font-size:14px">Timeout:</label>
+                <input type="range" id="timeout-slider" min="5" max="60" value="20" style="width:100px"
+                  oninput="document.getElementById('timeout-value').textContent = this.value + 's'">
+                <span id="timeout-value" style="color:var(--text-primary); font-size:14px; min-width:30px">20s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Tabbed Container -->
+      <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          📊 Step 3: Analysis & Debug Output
+          <span class="collapse-arrow">▲</span>
+        </div>
+        <div class="collapsible-content collapsed">
+          <div class="container">
+            <div class="tab-container">
+              <div class="tab-header">
+                <button class="tab-button active" onclick="switchTab('compile-elf-analysis')">📂 Compile ELF Analysis</button>
+                <button class="tab-button" onclick="switchTab('linked-elf-analysis')">📂 Linked ELF Analysis</button>
+                <button class="tab-button" onclick="switchTab('debug-execution')">🐛 Debug Execution</button>
+                <button class="tab-button" onclick="switchTab('execution-log')">📝 Execution Log</button>
+                <button class="tab-button" onclick="switchTab('step-analysis')">📊 Step Analysis</button>
+              </div>
+
+              <div class="tab-content">
+                <!-- Compile ELF Analysis Tab -->
+                <div id="compile-elf-analysis" class="tab-panel active">
+                  <h3>Compiled Object File Analysis</h3>
+                  <div id="compile-output"></div>
+                </div>
+
+                <!-- Linked ELF Analysis Tab -->
+                <div id="linked-elf-analysis" class="tab-panel">
+                  <h3>Linked Executable Analysis</h3>
+                  <div id="linked-output"></div>
+                </div>
+
+                <!-- Debug Execution Tab -->
+                <div id="debug-execution" class="tab-panel">
+                  <h3>Execution Trace</h3>
+                  <div id="executionTrace"></div>
+                </div>
+
+                <!-- Execution Log Tab -->
+                <div id="execution-log" class="tab-panel">
+                  <h3>Execution Log</h3>
+                  <div id="emuOutput"></div>
+                </div>
+
+                <!-- Step Analysis Tab -->
+                <div id="step-analysis" class="tab-panel">
+                  <h3>Step Analysis</h3>
+                  <div id="stepAnalysisOutput" style="font-family: monospace; font-size: 12px; white-space: pre-line;">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Dependencies (update as needed) -->
+      <script src="jquery-3.1.1.min.js"></script>
+
+      <!-- Testing Framework -->
+      <script src="js/testing-framework.js"></script>
+
+      <script>
+        // Initialize CodeMirror for C source code
+        let sourceCodeEditor;
+
+        // Helper function to get source code content
+        function getSourceCode() {
+          return sourceCodeEditor ? sourceCodeEditor.getValue() : document.getElementById('sourceCode').value;
+        }
+        // Help function
+        function showHelp() {
+          alert(`🚀 C Compiler & Debugger Workflow Help
+
+📝 Step 1: Write your C code in the editor
+⚡ Step 2: Click Compile to compile to object file
+📂 Step 3: Load the generated object file
+🔧 Step 4: Initialize the debugger
+⏭️  Step 5: Step through instructions
+
+Keyboard Shortcuts:
+• Ctrl+Enter: Compile
+• F5: Initialize debugger
+• F10: Step instruction
+
+Floating Actions: Quick access to common operations`);
+        }
+
+        // Load saved theme on page load
+        document.addEventListener('DOMContentLoaded', function () {
+          const savedTheme = localStorage.getItem('theme') || 'dark';
+          document.body.setAttribute('data-theme', savedTheme);
+        });
+
+        // Enhanced status update functions
+        function updateStatus(text, type = 'ready') {
+          const statusDiv = document.getElementById('status');
+
+          statusDiv.textContent = text;
+
+          // Update classes and data attributes
+          statusDiv.className = `status ${type}`;
+          statusDiv.setAttribute('data-status', type);
+        }
+
+        // Status presets for common operations
+        function showReadyStatus(text = 'Ready') {
+          updateStatus(text, 'ready');
+        }
+
+        function showErrorStatus(text = 'Error occurred') {
+          updateStatus(text, 'error');
+        }
+
+        // Tab switching functionality
+        function switchTab(tabId) {
+          // Remove active class from all tabs and panels
+          document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+          document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+          // Add active class to clicked tab and corresponding panel
+          document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add('active');
+          document.getElementById(tabId).classList.add('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+          const textarea = document.getElementById('sourceCode');
+          sourceCodeEditor = CodeMirror.fromTextArea(textarea, {
+            mode: 'text/x-csrc',
+            lineNumbers: true,
+            theme: 'default',
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            lineWrapping: false,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            showCursorWhenSelecting: true,
+            viewportMargin: Infinity,
+            extraKeys: {
+              "Tab": function (cm) {
+                if (cm.somethingSelected()) {
+                  cm.indentSelection("add");
+                } else {
+                  cm.replaceSelection("    ", "end");
+                }
+              }
+            }
+          });
+        });
+        function toggleCollapsible(header) {
+          const section = header.closest('.collapsible-section');
+          const content = section.querySelector('.collapsible-content');
+          const arrow = header.querySelector('.collapse-arrow');
+          const isCollapsed = content.classList.contains('collapsed');
+          content.classList.toggle('collapsed', !isCollapsed);
+          arrow.textContent = isCollapsed ? '▼' : '▲';
+        }
+
+
+
+
+
+        // FAB functions that mirror horizontal button functionality
+        function initializeDebugger() {
+          // Trigger the same action as clicking the #runUnicorn button
+          const runUnicornBtn = document.getElementById('runUnicorn');
+          if (runUnicornBtn && !runUnicornBtn.disabled) {
+            runUnicornBtn.click();
+          }
+        }
+
+        function stepInstruction() {
+          // Trigger the same action as clicking the #stepBtn button
+          const stepBtn = document.getElementById('stepBtn');
+          if (stepBtn && !stepBtn.disabled) {
+            stepBtn.click();
+          }
+        }
+
+        function runUntilHalt() {
+          // Trigger the same action as clicking the #runBtn button
+          const runBtn = document.getElementById('runBtn');
+          if (runBtn && !runBtn.disabled) {
+            runBtn.click();
+          }
+        }
+
+        function stopExecution() {
+          // Trigger the same action as clicking the #stopBtn button  
+          const stopBtn = document.getElementById('stopBtn');
+          if (stopBtn && !stopBtn.disabled) {
+            stopBtn.click();
+          }
+        }
+
+        // Function to sync FAB enabled/disabled state with horizontal buttons
+        function syncFABStates() {
+          const quickBtn = document.getElementById('quickBtn');
+          const linkBtn = document.getElementById('linkBtn');
+          const runUnicornBtn = document.getElementById('runUnicorn');
+          const stepBtn = document.getElementById('stepBtn');
+          const runBtn = document.getElementById('runBtn');
+          const stopBtn = document.getElementById('stopBtn');
+
+          const fabCompile = document.querySelector('.fab-compile');
+          const fabLink = document.querySelector('.fab-link');
+          const fabDebug = document.querySelector('.fab-debug');
+          const fabStep = document.querySelector('.fab-step');
+          const fabRun = document.querySelector('.fab-run');
+          const fabStop = document.querySelector('.fab-stop');
+
+          if (fabCompile && quickBtn) {
+            fabCompile.disabled = quickBtn.disabled;
+            fabCompile.style.opacity = quickBtn.disabled ? '0.5' : '1';
+          }
+
+          if (fabLink && linkBtn) {
+            fabLink.disabled = linkBtn.disabled;
+            fabLink.style.opacity = linkBtn.disabled ? '0.5' : '1';
+          }
+
+          if (fabDebug && runUnicornBtn) {
+            fabDebug.disabled = runUnicornBtn.disabled;
+            fabDebug.style.opacity = runUnicornBtn.disabled ? '0.5' : '1';
+          }
+
+          if (fabStep && stepBtn) {
+            fabStep.disabled = stepBtn.disabled;
+            fabStep.style.opacity = stepBtn.disabled ? '0.5' : '1';
+          }
+
+          if (fabRun && runBtn) {
+            fabRun.disabled = runBtn.disabled;
+            fabRun.style.opacity = runBtn.disabled ? '0.5' : '1';
+            fabRun.style.display = runBtn.style.display;
+          }
+
+          if (fabStop && stopBtn) {
+            fabStop.disabled = stopBtn.disabled;
+            fabStop.style.opacity = stopBtn.disabled ? '0.5' : '1';
+            fabStop.style.display = stopBtn.style.display;
+          }
+        }
+
+        // Call syncFABStates whenever button states change
+        const observer = new MutationObserver(() => {
+          syncFABStates();
+        });
+
+        // Start observing when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+          syncFABStates(); // Initial sync
+
+          // Observe the button container for changes
+          const buttonContainer = document.querySelector('.button-group');
+          if (buttonContainer) {
+            observer.observe(buttonContainer, {
+              attributes: true,
+              subtree: true,
+              attributeFilter: ['disabled']
+            });
+          }
+        });
+      </script>
+
+      <script src="unicorn-x86.min.js"></script>
+      <script src="capstone-x86.min.js"></script>
+
+      <!-- unicorn-debugger -->
+      <script src="js/unicorn-debugger.js"></script>
+
+      <!-- TinyCC Integration -->
+      <script src="./tcc.js"></script>
+
+      <!-- tcc compiler -->
+      <script src="js/tcc-compiler.js"></script>
+    </div> <!-- End main-content -->
+</body>
+
+</html>
