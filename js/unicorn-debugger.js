@@ -275,8 +275,7 @@
         const stepBtn = document.getElementById('stepBtn');
         const resetBtn = document.getElementById('resetBtn');
         
-        const fabRun = document.querySelector('.fab-run');
-        const fabStop = document.querySelector('.fab-stop');
+        const fabRunStop = document.querySelector('.fab-run-stop');
         const fabStep = document.querySelector('.fab-step');
         const fabReset = document.querySelector('.fab-reset');
         
@@ -287,8 +286,12 @@
           if (stepBtn) { stepBtn.disabled = true; }
           if (resetBtn) { resetBtn.disabled = true; }
           
-          if (fabRun) { fabRun.style.display = 'none'; }
-          if (fabStop) { fabStop.style.display = 'block'; fabStop.disabled = false; }
+          if (fabRunStop) { 
+            fabRunStop.textContent = '⏹️';
+            fabRunStop.onclick = stopExecution;
+            fabRunStop.style.display = 'flex'; 
+            fabRunStop.disabled = false; 
+          }
           if (fabStep) { fabStep.disabled = true; fabStep.style.opacity = '0.5'; }
           if (fabReset) { fabReset.disabled = true; fabReset.style.opacity = '0.5'; }
         } else {
@@ -298,8 +301,12 @@
           if (stepBtn) { stepBtn.disabled = false; }
           if (resetBtn) { resetBtn.disabled = false; }
           
-          if (fabRun) { fabRun.style.display = 'block'; fabRun.disabled = false; }
-          if (fabStop) { fabStop.style.display = 'none'; }
+          if (fabRunStop) { 
+            fabRunStop.textContent = '▶️';
+            fabRunStop.onclick = runUntilHalt;
+            fabRunStop.style.display = 'flex'; 
+            fabRunStop.disabled = false; 
+          }
           if (fabStep) { fabStep.disabled = false; fabStep.style.opacity = '1'; }
           if (fabReset) { fabReset.disabled = false; fabReset.style.opacity = '1'; }
         }
@@ -1359,7 +1366,7 @@
         document.getElementById('runUnicorn').disabled = false;
         
         // Update main status indicator
-        updateStatus('Object file auto-loaded successfully', 'ready');
+        console.log('Object file auto-loaded successfully');
         
         console.log('✅ Auto-load successful!');
         return true;
@@ -1368,7 +1375,7 @@
         console.error('❌ Auto-load failed:', error);
         
         // Update main status indicator with error
-        updateStatus('Auto-load failed - use manual upload', 'error');
+        console.log('Auto-load failed - use manual upload');
         
         return false;
       }

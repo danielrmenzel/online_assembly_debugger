@@ -171,12 +171,8 @@
         <span class="tooltiptext">Step Instruction</span>
       </div>
       <div class="tooltip">
-        <button class="fab fab-run" onclick="runUntilHalt()" style="display: none;">▶️</button>
-        <span class="tooltiptext">Run Until Halt</span>
-      </div>
-      <div class="tooltip">
-        <button class="fab fab-stop" onclick="stopExecution()" style="display: none;">⏹️</button>
-        <span class="tooltiptext">Stop Execution</span>
+        <button class="fab fab-run-stop" id="fabRunStop" onclick="runUntilHalt()" style="display: none;">▶️</button>
+        <span class="tooltiptext" id="runStopTooltip">Run Until Halt</span>
       </div>
       <div class="tooltip">
         <button class="fab fab-reset" onclick="resetDebugger()">🔄</button>
@@ -308,7 +304,7 @@ int main() {
         </div>
         
         <!-- Button container moved outside grid layout for full width -->
-        <div class="button-status-container">
+        <div class="button-container">
           <div class="button-group">
             <button id="compBtn" class="button-style" onclick="compileFromSource('compile')" disabled>⚡ Compile</button>
             <button id="linkBtn" class="button-style" onclick="compileFromSource('link')" disabled>🔗 Link</button>
@@ -326,9 +322,6 @@ int main() {
             <button id="runBtn" class="control-btn button-style" disabled>▶️ Run</button>
             <button id="stopBtn" class="control-btn button-style" disabled style="display: none;">⏹️ Stop</button>
             <button id="resetBtn" class="control-btn button-style" disabled>🔄 Reset</button>
-          </div>
-          <div id="status" class="status ready" data-status="ready">
-            TinyCC WebAssembly Ready
           </div>
 
         </div>
@@ -650,25 +643,6 @@ Floating Actions: Quick access to common operations`);
           document.body.setAttribute('data-theme', savedTheme);
         });
 
-        // Enhanced status update functions
-        function updateStatus(text, type = 'ready') {
-          const statusDiv = document.getElementById('status');
-
-          statusDiv.textContent = text;
-
-          // Update classes and data attributes
-          statusDiv.className = `status ${type}`;
-          statusDiv.setAttribute('data-status', type);
-        }
-
-        // Status presets for common operations
-        function showReadyStatus(text = 'Ready') {
-          updateStatus(text, 'ready');
-        }
-
-        function showErrorStatus(text = 'Error occurred') {
-          updateStatus(text, 'error');
-        }
 
         // Tab switching functionality
         function switchTab(tabId) {
@@ -770,8 +744,7 @@ Floating Actions: Quick access to common operations`);
           const fabLink = document.querySelector('.fab-link');
           const fabDebug = document.querySelector('.fab-debug');
           const fabStep = document.querySelector('.fab-step');
-          const fabRun = document.querySelector('.fab-run');
-          const fabStop = document.querySelector('.fab-stop');
+          const fabRunStop = document.querySelector('.fab-run-stop');
           const fabReset = document.querySelector('.fab-reset');
 
           if (fabCompile && compBtn) {
@@ -794,16 +767,18 @@ Floating Actions: Quick access to common operations`);
             fabStep.style.opacity = stepBtn.disabled ? '0.5' : '1';
           }
 
-          if (fabRun && runBtn) {
-            fabRun.disabled = runBtn.disabled;
-            fabRun.style.opacity = runBtn.disabled ? '0.5' : '1';
-            fabRun.style.display = runBtn.style.display;
-          }
-
-          if (fabStop && stopBtn) {
-            fabStop.disabled = stopBtn.disabled;
-            fabStop.style.opacity = stopBtn.disabled ? '0.5' : '1';
-            fabStop.style.display = stopBtn.style.display;
+          if (fabRunStop && (runBtn || stopBtn)) {
+            const isRunning = stopBtn && stopBtn.style.display !== 'none';
+            fabRunStop.textContent = isRunning ? '⏹️' : '▶️';
+            fabRunStop.onclick = isRunning ? stopExecution : runUntilHalt;
+            fabRunStop.disabled = isRunning ? (stopBtn.disabled) : (runBtn.disabled);
+            fabRunStop.style.opacity = fabRunStop.disabled ? '0.5' : '1';
+            fabRunStop.style.display = (runBtn && runBtn.style.display !== 'none') || (stopBtn && stopBtn.style.display !== 'none') ? 'flex' : 'none';
+            
+            const tooltip = document.getElementById('runStopTooltip');
+            if (tooltip) {
+              tooltip.textContent = isRunning ? 'Stop Execution' : 'Run Until Halt';
+            }
           }
 
           if (fabReset && resetBtn) {

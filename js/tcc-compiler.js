@@ -17,15 +17,10 @@
                 console.log('Available functions:', Object.keys(tccModule).filter(k => typeof tccModule[k] === 'function'));
             } catch (error) {
                 console.error('Failed to load TinyCC module:', error);
-                updateStatus('error', 'Failed to load TinyCC module: ' + error.message);
+                console.error('Failed to load TinyCC module:', error);
             }
         });
 
-        function updateStatus(type, message) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.className = 'status ' + type;
-            statusDiv.textContent = message;
-        }
 
         function setupRuntimeFiles() {
             // Verify required runtime files exist - fail if they don't
@@ -201,7 +196,7 @@ void _start() {
                                 }
                                 
                                 document.getElementById('downloadBtn').disabled = false;
-                                updateStatus('ready', `⚡ ${mode === 'link' ? 'Linking' : 'Compilation'} successful!`);
+                                console.log(`⚡ ${mode === 'link' ? 'Linking' : 'Compilation'} successful!`);
                                 
                             } else {
                                 output += `⚠️ Generated file may not be standard ELF format\n`;
@@ -278,7 +273,7 @@ void _start() {
                 updateOutput(`🎉 Success! ${resultType} file downloaded!\n\n` +
                             `You can now upload it to the debugger.`);
                             
-                updateStatus('ready', `🎉 ${resultType} file downloaded successfully!`);
+                console.log(`🎉 ${resultType} file downloaded successfully!`);
                 
             } catch (error) {
                 updateOutput(`✗ Failed to download file: ${error.message}`);

@@ -231,40 +231,6 @@ h3 {
   box-shadow: var(--shadow-hover);
 }
 
-/* Status Indicators */
-.status {
-  margin: 10px 0;
-  padding: 10px;
-  border-radius: 0;
-  border: 2px solid var(--accent-green);
-  text-shadow: var(--retro-glow);
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  text-align: center;
-}
-
-.status.ready {
-  background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
-  color: var(--accent-green);
-  border-color: var(--accent-green);
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.status.error {
-  background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
-  color: var(--accent-red);
-  border-color: var(--accent-red);
-  box-shadow: 0 8px 32px rgba(255, 71, 87, 0.15), 0 4px 16px rgba(255, 71, 87, 0.1);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.status.processing {
-  background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
-  color: var(--accent-yellow);
-  border-color: var(--accent-yellow);
-  box-shadow: 0 8px 32px rgba(255, 165, 2, 0.15), 0 4px 16px rgba(255, 165, 2, 0.1);
-}
 
 /* Three-Column Grid Layout */
 .editor-container {
@@ -415,7 +381,6 @@ h3 {
   overflow-y: auto;
   box-sizing: border-box;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -431,31 +396,16 @@ h3 {
   border-bottom: 1px solid rgba(0, 255, 136, 0.2);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  word-wrap: break-word;
-  overflow-wrap: break-word;
   transition: all 0.3s ease;
+  line-height: 1.2;
   border-radius: 4px;
   margin-bottom: 1px;
-  min-height: 22px;
+  height: 30px;
   box-sizing: border-box;
-  overflow: hidden;
   background: var(--bg-primary);
+  overflow-y: hidden;
 }
 
-.reg-name{
-  color: var(--accent-yellow);
-  font-weight: bold;
-  min-width: 4px;
-  /* Updated to provide better spacing and prevent text misalignment */
-  max-width: 43px;
-  /* Updated to provide better spacing and prevent text misalignment */
-  text-align: left;
-  flex-shrink: 0;
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .reg-value{
   color: var(--text-primary);
@@ -464,12 +414,7 @@ h3 {
   text-align: right;
   flex: 1;
   margin-left: 4px;
-  /* Reduced from 8px to 4px for tighter spacing */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
-  /* Allow flexbox to shrink */
 }
 
 .stack-item {
@@ -487,23 +432,15 @@ h3 {
   min-height: 22px;
   /* Ensure consistent height */
   box-sizing: border-box;
-  overflow: hidden;
-  /* Prevent text bleeding */
 }
 
 .stack-addr {
-  color: var(--accent-yellow);
+  color: var(--accent-cyan);
   font-weight: bold;
-  min-width: 120px;
-  /* Reduced from 55px to 42px */
-  max-width: 120px;
-  /* Reduced from 55px to 42px */
+  min-width: 160px;
   text-align: left;
   flex-shrink: 0;
   font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .stack-value {
@@ -604,8 +541,6 @@ h3 {
     right: 10px;
   }
 
-
-  .register-grid,
 }
 
 /* Mobile */
@@ -664,12 +599,6 @@ h3 {
     font-size: 10px;
   }
 
-  .button-status-container {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    gap: 10px;
-    /* width: 100%; */
-  }
 
   .button-group {
     display: flex;
@@ -688,14 +617,6 @@ h3 {
   .button-group button,
   .button-group .file-input-label,
 
-  .button-status-container {
-    min-height: 44px;
-  }
-
-  .button-status-container .status {
-    height: 44px;
-    padding: 10px 12px;
-  }
 
   .tab-button {
     font-size: 12px;
@@ -1205,6 +1126,7 @@ button>* {
 .reg-name {
   font-weight: bold;
   color: var(--accent-cyan);
+  font-size: 10px;
 }
 
 .reg-value {
@@ -1220,13 +1142,6 @@ button>* {
   background: var(--bg-primary);
 }
 
-.stack-addr {
-  color: var(--accent-cyan);
-}
-
-.stack-value {
-  color: var(--text-primary);
-}
 
 /* Custom Scrollbars */
 *::-webkit-scrollbar {
@@ -1297,14 +1212,11 @@ button>* {
 
 
 /* Button and Status Layout */
-.button-status-container {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 20px;
+.button-container {
   margin-bottom: 1rem;
   width: 100%;
-  min-height: 48px;
-  align-items: center;
+  display: flex;
+  justify-content: center;
 }
 
 .button-group {
@@ -1474,19 +1386,6 @@ button>* {
 
 
 
-.button-status-container .status {
-  margin: 0;
-  flex-shrink: 0;
-  min-width: 300px;
-  height: 48px;
-  /* Match button height exactly */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 12px 16px;
-  /* Match button padding */
-}
 
 .highlight {
   background-color: var(--accent-green);
