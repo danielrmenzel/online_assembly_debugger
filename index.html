@@ -9,8 +9,8 @@
   <!-- Link to External CSS -->
   <link rel="stylesheet" href="css/styles.css">
 
-  <!-- CodeMirror -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <!-- CodeMirror with CDN fallback -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css" onerror="this.remove()">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js"></script>
 
@@ -65,6 +65,21 @@
       background: #90EE90 !important; /* Light green */
       color: #000000 !important; /* Black text */
     }
+
+    /* Fallback styles for when CodeMirror CSS doesn't load */
+    #sourceCode {
+      font-family: Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace;
+      font-size: 14px;
+      line-height: 1.4;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f8f8f8;
+      min-height: 300px;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 
@@ -91,11 +106,11 @@
     <!-- Floating Action Buttons -->
     <div class="floating-actions">
       <div class="tooltip">
-        <button class="fab fab-compile" onclick="quickCompileExact('compile')">⚡</button>
+        <button class="fab fab-compile" onclick="compileFromSource('compile')">⚡</button>
         <span class="tooltiptext">Compile to .o</span>
       </div>
       <div class="tooltip">
-        <button class="fab fab-link" onclick="quickCompileExact('link')">🔗</button>
+        <button class="fab fab-link" onclick="compileFromSource('link')">🔗</button>
         <span class="tooltiptext">Link</span>
       </div>
       <div class="tooltip">
@@ -282,8 +297,8 @@ int main() {
         <!-- Button container moved outside grid layout for full width -->
         <div class="button-status-container">
           <div class="button-group">
-            <button id="quickBtn" class="button-style" onclick="quickCompileExact('compile')" disabled>⚡ Compile</button>
-            <button id="linkBtn" class="button-style" onclick="quickCompileExact('link')" disabled>🔗 Link</button>
+            <button id="quickBtn" class="button-style" onclick="compileFromSource('compile')" disabled>⚡ Compile</button>
+            <button id="linkBtn" class="button-style" onclick="compileFromSource('link')" disabled>🔗 Link</button>
             <button id="downloadBtn" class="button-style" onclick="downloadResult()" disabled>📥 Download</button>
             <button class="button-style" onclick="clearOutput()">🗑 Clear</button>
 
@@ -314,9 +329,8 @@ int main() {
         <div class="collapsible-content collapsed">
           <div class="section-content testing-framework">
             <!-- Progress Indicator -->
-            <div id="test-progress" class="progress-container"
-              style="display:none;border:2px solid var(--border-color);border-radius:0">
-              <div id="test-progress-bar" class="progress-bar" style="width:0%;height:6px;border-radius:0"></div>
+            <div id="test-progress" class="progress-container" style="display:none;">
+              <div id="test-progress-bar" class="progress-bar" style="width:0%;"></div>
             </div>
 
             <!-- Test Categories Grid -->
@@ -487,14 +501,14 @@ int main() {
                     Custom Test Runner
                     <span class="badge badge-warning">Manual</span>
                   </h4>
-                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
-                    <div style="display:flex; flex-direction:column; flex:1; gap:4px;">
-                      <label style="color:var(--text-primary); font-size:12px; margin-bottom:2px;">Expected Return Value:</label>
-                      <input type="number" id="custom-expected-value" value="42" 
-                        style="width:100%; padding:4px; background:var(--bg-primary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
-                    </div>
-                    <button class="control-btn" onclick="runCustomTest()"
-                      style="padding:6px 10px;font-size:11px">RUN</button>
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; min-height:48px;">
+                    <label for="timeout-slider" style="color:var(--text-primary); font-size:12px;">Timeout:</label>
+                    <input type="range" id="timeout-slider" min="5" max="60" value="20" style="width:60px"
+                      oninput="document.getElementById('timeout-value').textContent = this.value + 's'">
+                    <span id="timeout-value" style="color:var(--text-primary); font-size:12px; min-width:25px">20s</span>
+                    <label style="color:var(--text-primary); font-size:12px; margin-left:auto;">Expected:</label>
+                    <input type="number" id="custom-expected-value" value="42" 
+                      style="width:40px; padding:8px 4px; background:var(--bg-primary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
                   </div>
                   <button class="control-btn" onclick="runCustomTest()"
                     style="padding:6px 10px;font-size:11px;width:100%">RUN C SOURCE CODE</button>
@@ -516,21 +530,15 @@ int main() {
                 </div>
                 <button class="control-btn" onclick="clearTestResults()"
                   style="padding:6px 10px;font-size:11px;width:100%;margin-top:8px">CLEAR LOG</button>
+
+                <!-- Test Control Buttons -->
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                  <button class="control-btn" onclick="runAllTestCategories()" style="flex: 1;">RUN ALL TESTS</button>
+                  <button class="control-btn" onclick="stopAllTests()" style="flex: 1;">STOP TESTS</button>
+                </div>
               </div>
             </div>
 
-            <!-- Control Buttons -->
-            <div class="button-row"
-              style="justify-content:center; align-items:center; gap:15px; flex-wrap:wrap; margin-top:20px">
-              <button class="control-btn" onclick="runAllTestCategories()">RUN ALL TESTS</button>
-              <button class="control-btn" onclick="clearTestResults()">CLEAR RESULTS</button>
-              <div style="display:flex; align-items:center; gap:10px">
-                <label for="timeout-slider" style="color:var(--text-primary); font-size:14px">Timeout:</label>
-                <input type="range" id="timeout-slider" min="5" max="60" value="20" style="width:100px"
-                  oninput="document.getElementById('timeout-value').textContent = this.value + 's'">
-                <span id="timeout-value" style="color:var(--text-primary); font-size:14px; min-width:30px">20s</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -545,31 +553,18 @@ int main() {
           <div class="container">
             <div class="tab-container">
               <div class="tab-header">
-                <button class="tab-button active" onclick="switchTab('compile-elf-analysis')">📂 Compile ELF Analysis</button>
-                <button class="tab-button" onclick="switchTab('linked-elf-analysis')">📂 Linked ELF Analysis</button>
-                <button class="tab-button" onclick="switchTab('debug-execution')">🐛 Debug Execution</button>
+                <button class="tab-button active" onclick="switchTab('compile-elf-analysis')">📂 ELF Analysis</button>
                 <button class="tab-button" onclick="switchTab('execution-log')">📝 Execution Log</button>
                 <button class="tab-button" onclick="switchTab('step-analysis')">📊 Step Analysis</button>
               </div>
 
               <div class="tab-content">
-                <!-- Compile ELF Analysis Tab -->
+                <!-- ELF Analysis Tab -->
                 <div id="compile-elf-analysis" class="tab-panel active">
-                  <h3>Compiled Object File Analysis</h3>
+                  <h3>ELF Analysis</h3>
                   <div id="compile-output"></div>
                 </div>
 
-                <!-- Linked ELF Analysis Tab -->
-                <div id="linked-elf-analysis" class="tab-panel">
-                  <h3>Linked Executable Analysis</h3>
-                  <div id="linked-output"></div>
-                </div>
-
-                <!-- Debug Execution Tab -->
-                <div id="debug-execution" class="tab-panel">
-                  <h3>Execution Trace</h3>
-                  <div id="executionTrace"></div>
-                </div>
 
                 <!-- Execution Log Tab -->
                 <div id="execution-log" class="tab-panel">
@@ -639,14 +634,6 @@ Floating Actions: Quick access to common operations`);
           statusDiv.setAttribute('data-status', type);
         }
 
-        // Status presets for common operations
-        function showReadyStatus(text = 'Ready') {
-          updateStatus(text, 'ready');
-        }
-
-        function showErrorStatus(text = 'Error occurred') {
-          updateStatus(text, 'error');
-        }
 
         // Tab switching functionality
         function switchTab(tabId) {
@@ -661,29 +648,72 @@ Floating Actions: Quick access to common operations`);
 
         document.addEventListener('DOMContentLoaded', function () {
           const textarea = document.getElementById('sourceCode');
-          sourceCodeEditor = CodeMirror.fromTextArea(textarea, {
-            mode: 'text/x-csrc',
-            lineNumbers: true,
-            theme: 'default',
-            indentUnit: 4,
-            tabSize: 4,
-            indentWithTabs: false,
-            lineWrapping: false,
-            matchBrackets: true,
-            autoCloseBrackets: true,
-            showCursorWhenSelecting: true,
-            viewportMargin: Infinity,
-            extraKeys: {
-              "Tab": function (cm) {
-                if (cm.somethingSelected()) {
-                  cm.indentSelection("add");
-                } else {
-                  cm.replaceSelection("    ", "end");
+          
+          // Check if CodeMirror loaded successfully from CDN
+          if (typeof CodeMirror !== 'undefined') {
+            try {
+              sourceCodeEditor = CodeMirror.fromTextArea(textarea, {
+                mode: 'text/x-csrc',
+                lineNumbers: true,
+                theme: 'default',
+                indentUnit: 4,
+                tabSize: 4,
+                indentWithTabs: false,
+                lineWrapping: false,
+                matchBrackets: true,
+                autoCloseBrackets: true,
+                showCursorWhenSelecting: true,
+                viewportMargin: Infinity,
+                extraKeys: {
+                  "Tab": function (cm) {
+                    if (cm.somethingSelected()) {
+                      cm.indentSelection("add");
+                    } else {
+                      cm.replaceSelection("    ", "end");
+                    }
+                  }
                 }
-              }
+              });
+              console.log('✅ CodeMirror loaded successfully from CDN');
+            } catch (error) {
+              console.warn('⚠️ CodeMirror initialization failed, falling back to plain textarea:', error);
+              handleCodeMirrorFallback(textarea);
+            }
+          } else {
+            console.warn('⚠️ CodeMirror not available from CDN, using plain textarea fallback');
+            handleCodeMirrorFallback(textarea);
+          }
+        });
+        
+        // Fallback function when CodeMirror is not available
+        function handleCodeMirrorFallback(textarea) {
+          sourceCodeEditor = null;
+          
+          // Add basic styling to make textarea look more like a code editor
+          textarea.style.fontFamily = 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace';
+          textarea.style.fontSize = '14px';
+          textarea.style.lineHeight = '1.4';
+          textarea.style.padding = '10px';
+          textarea.style.border = '1px solid #ddd';
+          textarea.style.borderRadius = '4px';
+          textarea.style.backgroundColor = '#f8f8f8';
+          textarea.style.minHeight = '300px';
+          textarea.style.resize = 'vertical';
+          
+          // Add tab support for plain textarea
+          textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              const start = this.selectionStart;
+              const end = this.selectionEnd;
+              
+              this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+              this.selectionStart = this.selectionEnd = start + 4;
             }
           });
-        });
+          
+          console.log('✅ Plain textarea fallback initialized with basic code editing features');
+        }
         function toggleCollapsible(header) {
           const section = header.closest('.collapsible-section');
           const content = section.querySelector('.collapsible-content');

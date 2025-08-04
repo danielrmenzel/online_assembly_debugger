@@ -13,14 +13,12 @@
         this.isRunning = false;
         this.isPaused = false;
         this.disasm = new cs.Capstone(cs.ARCH_X86, is64bit ? cs.MODE_64 : cs.MODE_32);
-        this.executionLog = [];
         this.executionTrace = [];
         this.lastLoggedAddress = null;
         
         // C function-level highlighting system
         this.lineMapping = new Map();
         this.currentHighlightedFunction = null;
-        this.functionColors = new Map();
         
         // Set initial RIP/EIP
         if (is64bit) {
@@ -65,29 +63,6 @@
         // Hook for halt instruction - use the breakpoint instead since HOOK_INSN may not be available
         // Dynamic exit breakpoints will handle program termination
         
-        // Hook for unmapped memory
-        this.engine.hook_add(UnicornModule.HOOK_MEM_UNMAPPED, (engine, type, address, size) => {
-          console.log(`Unmapped memory access: type=${type}, addr=0x${address.toString(16)}, size=${size}`);
-          try {
-            // Skip NULL pointer accesses - these are usually invalid
-            if (address === 0) {
-              console.log('Detected NULL pointer access - stopping execution');
-              this.isPaused = true;
-              this.isRunning = false;
-              return false;
-            }
-            
-            const alignedAddr = Math.floor(address / 0x1000) * 0x1000;
-            engine.mem_map(alignedAddr, 0x1000, UnicornModule.PROT_ALL);
-            console.log(`Mapped dummy page at 0x${alignedAddr.toString(16)}`);
-            return true;
-          } catch(e) {
-            console.log(`Failed to map dummy page: ${e.message}`);
-            this.isPaused = true;
-            this.isRunning = false;
-            return false;
-          }
-        });
         
       }
       
@@ -99,23 +74,12 @@
           // Capture pre-execution state for step analysis
           const preState = this.captureStepState();
           
-          // Log instruction before execution
-          this.logInstruction(startAddr);
-          
-          // Try to get instruction length first
-          let instrLength = 1;
-          let instructionText = '';
-          try {
-            const instrBytes = this.engine.mem_read(startAddr, 16);
-            const instructions = this.disasm.disasm(instrBytes, startAddr, 1);
-            if (instructions.length > 0) {
-              instrLength = instructions[0].size;
-              instructionText = `${instructions[0].mnemonic} ${instructions[0].op_str}`;
-              console.log(`Executing: ${instructionText} at 0x${startAddr.toString(16)}`);
-            }
-          } catch(e) {
-            console.log('Could not disassemble instruction at 0x' + startAddr.toString(16));
-          }
+          // Get instruction length and disassembly
+          const instrBytes = this.engine.mem_read(startAddr, 16);
+          const instructions = this.disasm.disasm(instrBytes, startAddr, 1);
+          const instrLength = instructions[0].size;
+          const instructionText = `${instructions[0].mnemonic} ${instructions[0].op_str}`;
+          console.log(`Executing: ${instructionText} at 0x${startAddr.toString(16)}`);
           
           // Execute exactly one instruction with proper end address
           this.engine.emu_start(startAddr, startAddr + instrLength, 0, 1);
@@ -283,7 +247,6 @@
       
       reset() {
         this.currentAddress = this.entryPoint;
-        this.executionLog = [];
         this.executionTrace = [];
         this.lastLoggedAddress = null;
         this.isRunning = false;
@@ -299,7 +262,6 @@
         this.updateButtonStates();
         this.updateUI();
         document.getElementById('emuOutput').textContent = 'Debugger reset.\n';
-        document.getElementById('executionTrace').textContent = '';
         document.getElementById('stepAnalysisOutput').textContent = '';
       }
       
@@ -412,23 +374,6 @@
         return stackData;
       }
       
-      logInstruction(address) {
-        try {
-          const instrBytes = this.engine.mem_read(address, 16);
-          const instructions = this.disasm.disasm(instrBytes, address, 1);
-          if (instructions.length > 0) {
-            const insn = instructions[0];
-            this.executionLog.push({
-              address: address,
-              mnemonic: insn.mnemonic,
-              operands: insn.op_str,
-              bytes: insn.bytes
-            });
-          }
-        } catch(e) {
-          console.log('Failed to log instruction:', e.message);
-        }
-      }
       
       logToExecutionTrace(address) {
         try {
@@ -514,7 +459,6 @@
       updateUI() {
         this.updateRegisters();
         this.updateStack();
-        this.updateExecutionLog();
       }
       
       updateRegisters() {
@@ -540,19 +484,17 @@
         document.getElementById('stackView').innerHTML = stackHTML;
       }
       
-      updateExecutionLog() {
-        const logText = this.executionLog.map(entry =>
-          `0x${entry.address.toString(16)}: ${entry.mnemonic} ${entry.operands}`
-        ).join('\n');
-        document.getElementById('emuOutput').textContent = logText;
-      }
       
       updateExecutionTrace() {
         if (this.executionTrace && this.executionTrace.length > 0) {
-          document.getElementById('executionTrace').textContent = this.executionTrace.join('\n');
+          const traceText = this.executionTrace.join('\n');
+          
+          // Update execution log with enhanced trace data
+          const emuOutputDiv = document.getElementById('emuOutput');
+          emuOutputDiv.textContent = traceText;
+          
           // Auto-scroll to bottom
-          const traceDiv = document.getElementById('executionTrace');
-          traceDiv.scrollTop = traceDiv.scrollHeight;
+          emuOutputDiv.scrollTop = emuOutputDiv.scrollHeight;
         }
       }
       
@@ -920,6 +862,7 @@
       
       // If no symbols found, try pattern-based detection as fallback
       if (functions.length === 0) {
+        console.log("!!!Fallback: Function Symbol Extraction - No symbols found, using pattern-based detection");
         console.log('No symbols found, attempting pattern-based function detection');
         return detectFunctionsFromAssembly(parsed, textBaseAddr);
       }
@@ -929,6 +872,7 @@
 
     // Fallback function detection based on assembly patterns
     function detectFunctionsFromAssembly(parsed, textBaseAddr) {
+      console.log("!!!Fallback: Pattern-Based Function Detection - Detecting functions from assembly patterns");
       const functions = [];
       
       try {
@@ -1086,9 +1030,16 @@
       return {elfHeader:eh, programHeaders:ph, sectionHeaders:sh, view};
     }
     function showJSON(obj, isLinking = false){
-      const outputId = isLinking ? 'linked-output' : 'compile-output';
-      document.getElementById(outputId).textContent = JSON.stringify(obj, (k,v)=>(k==='view'?undefined:v), 2);
+      const operation = isLinking ? 'LINKED' : 'COMPILED';
+      const timestamp = new Date().toLocaleTimeString();
+      
+      const header = `=== ${operation} ELF ANALYSIS (${timestamp}) ===\n\n`;
+      const jsonContent = JSON.stringify(obj, (k,v)=>(k==='view'?undefined:v), 2);
+      
+      // Always write to the single compile-output div
+      document.getElementById('compile-output').textContent = header + jsonContent;
     }
+    
     
     function showCompileAnalysis(parsed) {
       showJSON(parsed, false);
@@ -1106,16 +1057,6 @@
       }
     }
     
-    function showLinkedAnalysis(parsed) {
-      showJSON(parsed, true);
-      
-      // Use stored function names if available
-      if (window.compiledFunctionNames && window.compiledFunctionNames.length > 0) {
-        console.log('✓ Using stored function names for linked analysis');
-      } else {
-        console.log('⚠️ No stored function names - compile first for better function labels');
-      }
-    }
     let parsed;
     let unicornDebugger = null;
     
@@ -1176,7 +1117,6 @@
       
       // Clear previous ELF data and disable debugger
       document.getElementById('compile-output').textContent = '';
-      document.getElementById('linked-output').textContent = '';
       document.getElementById('disassembly').textContent = 'Disassembly will appear here after loading object file...';
       document.getElementById('runUnicorn').disabled = true;
       parsed = null;
@@ -1215,11 +1155,21 @@
         // Parse the ELF data directly
         parsed = parseELF(buffer);
         
-        // Route to correct analysis tab based on mode
-        if (compileMode === 'link') {
-          showLinkedAnalysis(parsed);
-        } else {
-          showCompileAnalysis(parsed);
+        // Show analysis in single ELF tab
+        showJSON(parsed, compileMode === 'link');
+        
+        // Store function names if this is a compile operation
+        if (compileMode === 'compile') {
+          const {sectionHeaders} = parsed;
+          const textSection = sectionHeaders.find(sh => sh.name === '.text');
+          if (textSection) {
+            const functionSymbols = extractFunctionSymbols(parsed, 0x10000000); // Object file base
+            if (functionSymbols.length > 0) {
+              window.compiledFunctionNames = functionSymbols;
+              window.lastCompiledCode = getSourceCode ? getSourceCode() : '';
+              console.log('✓ Stored function names from compile:', functionSymbols.map(f => f.name));
+            }
+          }
         }
         
         // Generate disassembly
@@ -1516,8 +1466,6 @@
             // If size is 0 or unknown, calculate from next function
             if(funcSize === 0 && i < functions.length - 1) {
               funcSize = functions[i + 1].address - func.address;
-            } else if(funcSize === 0) {
-              funcSize = 50; // Default fallback for last function
             }
             
             functionBoundaries.set(func.name, {
@@ -1608,97 +1556,6 @@
             console.log(`Invalid symbol index ${symbolIndex} or missing symbol/string tables`);
           }
           
-          // If symbol name couldn't be resolved from symbol table, try dynamic resolution
-          if(!symbolName) {
-            console.log(`Could not resolve symbol ${symbolIndex} from symbol table, attempting dynamic resolution`);
-            
-            // Find the .text section to analyze call instructions
-            const textSection = sectionHeaders.find(sh => sh.name === '.text');
-            if(textSection && textSection.size > 0) {
-              // Analyze the relocation offset to find which call site this is
-              const textData = new Uint8Array(view.buffer, textSection.offset, textSection.size);
-              const callOffsets = [];
-              
-              // Find all call instructions (0xe8 opcode for near call)
-              for(let i = 0; i < textData.length - 4; i++) {
-                if(textData[i] === 0xe8) {
-                  callOffsets.push(i);
-                }
-              }
-              
-              // Relocation offset points to the operand, call instruction is 1 byte before
-              // But let's check multiple possibilities due to encoding variations
-              let callIndex = callOffsets.indexOf(offset - 1);
-              if(callIndex === -1) {
-                // Try other common patterns
-                callIndex = callOffsets.indexOf(offset - 2);
-                if(callIndex === -1) {
-                  callIndex = callOffsets.indexOf(offset - 3);
-                  if(callIndex === -1) {
-                    callIndex = callOffsets.indexOf(offset - 4);
-                    if(callIndex === -1) {
-                      callIndex = callOffsets.indexOf(offset - 5);
-                    }
-                  }
-                }
-              }
-              
-              const availableFunctions = Array.from(functionMap.keys()).filter(name => 
-                name !== 'main' && !name.endsWith('.c') && name.length > 0);
-              
-              console.log(`Found ${callOffsets.length} call instructions at offsets: ${callOffsets.map(o => '0x' + o.toString(16)).join(', ')}`);
-              console.log(`Current relocation offset: 0x${offset.toString(16)} (call index: ${callIndex})`);
-              console.log(`Available functions: ${availableFunctions.join(', ')}`);
-              
-              // Proper dynamic resolution: analyze the actual call target
-              if(callIndex >= 0) {
-                // Get the current relative offset from the call instruction
-                const callOffset = callOffsets[callIndex];
-                const callInstrAddr = callOffset;
-                
-                // Read the current 4-byte displacement after the call opcode
-                const displBytes = textData.slice(callOffset + 1, callOffset + 5);
-                const currentDispl = new DataView(displBytes.buffer, displBytes.byteOffset).getInt32(0, true);
-                
-                // Calculate what address this call would jump to with current displacement
-                const textBaseAddr = sectionAddresses.get('.text');
-                const currentTargetAddr = textBaseAddr + callInstrAddr + 5 + currentDispl;
-                
-                console.log(`Call at offset 0x${callOffset.toString(16)} currently targets 0x${currentTargetAddr.toString(16)}`);
-                
-                // Find which function this target address corresponds to using proper boundaries
-                let targetFunction = null;
-                
-                for(const [funcName, boundary] of functionBoundaries.entries()) {
-                  if(funcName !== 'main' && !funcName.endsWith('.c') && funcName.length > 0) {
-                    const funcStart = boundary.start;
-                    const funcEnd = boundary.start + boundary.size;
-                    
-                    console.log(`Checking function ${funcName}: 0x${funcStart.toString(16)} - 0x${funcEnd.toString(16)}, target: 0x${currentTargetAddr.toString(16)}`);
-                    
-                    // If target address falls within this function's actual boundaries
-                    if(currentTargetAddr >= funcStart && currentTargetAddr < funcEnd) {
-                      targetFunction = funcName;
-                      console.log(`Target 0x${currentTargetAddr.toString(16)} falls within ${funcName} boundaries`);
-                      break;
-                    }
-                  }
-                }
-                
-                symbolName = targetFunction;
-                if(symbolName) {
-                  console.log(`Dynamic analysis: call #${callIndex} targets function '${symbolName}'`);
-                } else {
-                  console.log(`Call target 0x${currentTargetAddr.toString(16)} is unpatched - cannot determine function dynamically`);
-                  console.log(`This indicates the relocation system needs the symbol name to patch the call correctly`);
-                  symbolName = null;
-                }
-              } else {
-                console.log(`Cannot find call instruction for relocation offset 0x${offset.toString(16)}`);
-                symbolName = null;
-              }
-            }
-          }
           
           console.log(`Relocation ${i}: offset=0x${offset.toString(16)}, symbolIndex=${symbolIndex}, symbol="${symbolName}", type=${relocType}, addend=${addend}`);
           
