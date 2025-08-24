@@ -58,6 +58,52 @@ function setupRuntimeFiles() {
         console.log('Runtime setup error:', error);
     }
 }
+/**
+ * Compiles C source code using TinyCC WebAssembly module with dual compilation modes.
+ * Handles both object file generation (.o) and linked executable creation with proper
+ * WebAssembly runtime file setup and memory management.
+ * 
+ * @param {string} mode - Compilation mode: 'compile' for object file or 'link' for linked executable
+ * @param {string} mode.compile - Creates object file (.o) with relative addressing for debugging
+ * @param {string} mode.link - Creates linked executable with _start function for execution
+ * 
+ * @description
+ * **Compilation Pipeline:**
+ * 1. Reset previous compilation state and clear debugger status
+ * 2. Setup TinyCC runtime files (crt1.o, crti.o, crtn.o, libc.a, libtcc1.a)
+ * 3. Write C source to virtual filesystem as 'source.c'
+ * 4. For linking mode: inject _start() function to call main()
+ * 5. Execute TinyCC with appropriate command line arguments
+ * 6. Validate output ELF format and enable debugger integration
+ * 7. Auto-load compiled result into debugging pipeline
+ * 
+ * **Memory Management:**
+ * - Allocates argc/argv arrays manually for WebAssembly compatibility
+ * - Handles string conversion and null termination for TinyCC arguments
+ * - Cleans up allocated memory after compilation to prevent leaks
+ * 
+ * **Error Handling:**
+ * - Validates TinyCC exit codes and provides detailed error reporting
+ * - Falls back gracefully from linking failures to object compilation
+ * - Updates UI status indicators and enables/disables download functionality
+ * 
+ * @throws {Error} When TinyCC module is not ready or compilation fails critically
+ * @modifies {global} resultData - Stores compiled binary data for download/debugging
+ * @modifies {global} resultType - Sets to 'object' or 'linked_executable'
+ * @modifies {DOM} Updates compilation output display and button states
+ * 
+ * @example
+ * // Compile to object file for debugging
+ * compileFromSource('compile');
+ * 
+ * @example 
+ * // Create linked executable for execution
+ * compileFromSource('link');
+ * 
+ * @see setupRuntimeFiles() For WebAssembly runtime file preparation
+ * @see autoLoadCompiledFile() For automatic debugger integration
+ * @since Version 1.0 - Initial WebAssembly TinyCC integration
+ */
 function compileFromSource(mode = 'compile') {
     const sourceCode = getSourceCode();
     if (!sourceCode.trim()) {

@@ -503,7 +503,7 @@ int main() {
                   </h4>
                   <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; min-height:48px;">
                     <label for="timeout-slider" style="color:var(--text-primary); font-size:12px;">Timeout:</label>
-                    <input type="range" id="timeout-slider" min="5" max="60" value="20" style="width:60px"
+                    <input type="range" id="timeout-slider" min="5" max="120" value="20" style="width:60px"
                       oninput="document.getElementById('timeout-value').textContent = this.value + 's'">
                     <span id="timeout-value" style="color:var(--text-primary); font-size:12px; min-width:25px">20s</span>
                     <label style="color:var(--text-primary); font-size:12px; margin-left:auto;">Expected:</label>
@@ -535,6 +535,16 @@ int main() {
                 <div style="display: flex; gap: 8px; margin-top: 8px;">
                   <button class="control-btn" onclick="runAllTestCategories()" style="flex: 1;">RUN ALL TESTS</button>
                   <button class="control-btn" onclick="stopAllTests()" style="flex: 1;">STOP TESTS</button>
+                </div>
+                
+                <!-- Performance Measurement Buttons -->
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                  <button class="control-btn" onclick="runAllTestsWithPerformanceMeasurement()" style="flex: 1; background-color: #2196F3;">📊 MEASURE PERFORMANCE</button>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                  <button class="control-btn" onclick="exportPerformanceData()" style="flex: 1; font-size: 10px;">Export JSON</button>
+                  <button class="control-btn" onclick="exportPerformanceCSV()" style="flex: 1; font-size: 10px;">Export CSV</button>
+                  <button class="control-btn" onclick="getThesisSummary()" style="flex: 1; font-size: 10px;">Thesis Data</button>
                 </div>
               </div>
             </div>
@@ -590,6 +600,9 @@ int main() {
 
       <!-- Testing Framework -->
       <script src="js/testing-framework.js"></script>
+      
+      <!-- Performance Measurement System -->
+      <script src="js/performance-measurement.js"></script>
 
       <script>
         // Initialize CodeMirror for C source code

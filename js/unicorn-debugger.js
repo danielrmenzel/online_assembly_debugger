@@ -2,8 +2,65 @@
     // Wait for Unicorn module to load
     var UnicornModule = uc;
     
-    // UnicornDebugger class for step-by-step execution
+    /**
+     * Advanced WebAssembly-based CPU emulator and debugger for compiled C programs.
+     * Integrates Unicorn Engine emulation with Capstone disassembly for comprehensive
+     * step-by-step debugging with register/stack visualization and C function mapping.
+     * 
+     * @class UnicornDebugger
+     * @description
+     * **Core Capabilities:**
+     * - Single-step instruction execution with register/stack state tracking
+     * - Real-time disassembly highlighting synchronized with execution
+     * - C function-level source code correlation and highlighting
+     * - Breakpoint management with automatic program termination detection
+     * - Comprehensive execution tracing with performance analytics
+     * - Dynamic memory analysis and bounds checking
+     * 
+     * **Architecture Support:**
+     * - x86 (32-bit) and x86_64 (64-bit) instruction sets
+     * - ELF object files (.o) and linked executables
+     * - WebAssembly memory isolation with proper cleanup
+     * 
+     * **Integration Points:**
+     * - TinyCC WebAssembly compiler output processing
+     * - CodeMirror source editor for function highlighting
+     * - DOM elements for register/stack/trace visualization
+     * - Performance measurement system for educational analytics
+     */
     class UnicornDebugger {
+      /**
+       * Initializes the WebAssembly-based CPU debugger with Unicorn Engine integration.
+       * 
+       * @param {Object} engine - Unicorn Engine WebAssembly instance for CPU emulation
+       * @param {boolean} is64bit - Architecture flag: true for x86_64, false for x86
+       * @param {number} entryPoint - Memory address to begin program execution (e.g., 0x10000000)
+       * 
+       * @description
+       * **Initialization Process:**
+       * 1. Configure CPU emulation engine with architecture-specific settings
+       * 2. Initialize Capstone disassembler for real-time instruction analysis
+       * 3. Setup execution tracing and breakpoint management systems
+       * 4. Create C function mapping infrastructure for source correlation
+       * 5. Register Unicorn Engine hooks for instruction and memory monitoring
+       * 6. Initialize register state (RIP/EIP) to specified entry point
+       * 
+       * **State Management:**
+       * - Tracks current execution address and instruction history
+       * - Maintains breakpoint set with automatic detection logic
+       * - Manages execution flow (running/paused/stopped states)
+       * - Stores C function boundaries for source code highlighting
+       * 
+       * @throws {Error} If Unicorn Engine module is not properly loaded
+       * @throws {Error} If Capstone disassembler initialization fails
+       * 
+       * @example
+       * const debugger = new UnicornDebugger(unicornEngine, true, 0x10000000);
+       * debugger.stepInstruction(); // Execute one instruction
+       * debugger.runUntilHalt();    // Run until program completion
+       * 
+       * @since Version 1.0 - Initial WebAssembly debugging implementation
+       */
       constructor(engine, is64bit, entryPoint) {
         this.engine = engine;
         this.is64bit = is64bit;
@@ -716,7 +773,65 @@
       }
     }
     
-    // Function to disassemble bytes with optional function symbols
+    /**
+     * Advanced ELF section disassembler with function symbol resolution and call tracing.
+     * Processes compiled machine code bytes into human-readable assembly with enhanced
+     * function boundary detection, call target resolution, and educational annotations.
+     * 
+     * @param {Uint8Array} bytes - Raw machine code bytes from ELF section (e.g., .text section)
+     * @param {number} arch - Capstone architecture constant (cs.ARCH_X86)
+     * @param {number} mode - Capstone mode constant (cs.MODE_32 or cs.MODE_64)
+     * @param {number} baseAddr - Virtual base address for instruction addressing (e.g., 0x10000000)
+     * @param {string} sectionName - ELF section name for output formatting (e.g., ".text")
+     * @param {Array<Object>} [functionSymbols=null] - Optional function symbol table for enhanced output
+     * @param {string} functionSymbols[].name - Function name (e.g., "main", "factorial")
+     * @param {number} functionSymbols[].address - Function start address
+     * @param {number} functionSymbols[].offset - Function offset within section
+     * 
+     * @returns {string} Formatted assembly disassembly with function labels and call annotations
+     * 
+     * @description
+     * **Disassembly Pipeline:**
+     * 1. Initialize Capstone disassembler with specified architecture and mode
+     * 2. Create function address mapping for symbol resolution
+     * 3. Process each instruction with address calculation and byte formatting
+     * 4. Insert function labels at appropriate addresses (<functionName>:)
+     * 5. Annotate call instructions with target function names
+     * 6. Mark return instructions with exit annotations
+     * 7. Generate educational assembly output with proper formatting
+     * 
+     * **Function Symbol Integration:**
+     * - Maps function names to memory addresses for label insertion
+     * - Resolves call targets to display "call 0x1000 ; → factorial()"
+     * - Identifies function boundaries for enhanced readability
+     * - Handles both symbol table data and pattern-based detection
+     * 
+     * **Educational Enhancements:**
+     * - Hex address display with consistent padding (0x10000000:)
+     * - Raw byte sequences for instruction analysis (48 89 e5)
+     * - Mnemonic and operand separation for clarity
+     * - Call target resolution with → arrow annotations
+     * - Function boundary markers with <> brackets
+     * 
+     * @throws {Error} If Capstone disassembler initialization fails
+     * @throws {Error} If byte array is invalid or corrupted
+     * 
+     * @example
+     * const symbols = [{name: "main", address: 0x10000000}, {name: "add", address: 0x10000020}];
+     * const assembly = disassembleSection(machineCode, cs.ARCH_X86, cs.MODE_64, 
+     *                                   0x10000000, ".text", symbols);
+     * console.log(assembly);
+     * // Output:
+     * // === .text Section Disassembly ===
+     * // 
+     * // <main>:
+     * // 0x10000000: 48 89 e5             mov rbp, rsp
+     * // 0x10000003: e8 18 00 00 00       call 0x10000020 ; → add()
+     * 
+     * @see extractFunctionSymbols() For generating function symbol tables
+     * @see parseELF() For ELF file processing and section extraction
+     * @since Version 1.0 - Enhanced disassembly with function correlation
+     */
     function disassembleSection(bytes, arch, mode, baseAddr, sectionName, functionSymbols = null) {
       try {
         const disasm = new cs.Capstone(arch, mode);
@@ -1189,10 +1304,11 @@
             // Extract function symbols for enhanced disassembly
             let functionSymbols;
             
-            if (compileMode === 'link' && window.compiledFunctionNames) {
+            if (compileMode === 'link' && (window.compiledFunctionNames || binaryData._savedPhase1Functions)) {
               // Use stored function names from compile step with real addresses
-              console.log(`Using stored function names for linked executable`);
-              functionSymbols = mapStoredNamesToAddresses(window.compiledFunctionNames, parsed, disasmBaseAddr);
+              const functionsToUse = window.compiledFunctionNames || binaryData._savedPhase1Functions;
+              console.log(`Using stored function names for linked executable (source: ${window.compiledFunctionNames ? 'window' : 'resultData'})`);
+              functionSymbols = mapStoredNamesToAddresses(functionsToUse, parsed, disasmBaseAddr);
             } else {
               console.log(`Auto-load: Extracting function symbols with textBaseAddr: 0x${disasmBaseAddr.toString(16)}, isObjectFile: ${isObjectFile}`);
               functionSymbols = extractFunctionSymbols(parsed, disasmBaseAddr);
@@ -1227,6 +1343,14 @@
       if(typeof UnicornModule==='undefined' || !UnicornModule.Unicorn){
         document.getElementById('emuOutput').textContent = 'Error: Unicorn not loaded';
         return;
+      }
+      
+      // PERFORMANCE TEST FIX: Check if resultData has attached Phase 1 function names
+      if (resultData && resultData._savedPhase1Functions && (!window.compiledFunctionNames || window.compiledFunctionNames.length <= 1)) {
+        console.log('🔧 Restoring Phase 1 function names from resultData for performance test');
+        window.compiledFunctionNames = resultData._savedPhase1Functions;
+        window.lastCompiledCode = resultData._savedPhase1Code;
+        console.log('✅ Function names restored from resultData:', resultData._savedPhase1Functions.map(f => f.name));
       }
       
       // Extract data from parsed ELF first
