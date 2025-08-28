@@ -108,7 +108,9 @@
               const instrBytes = this.engine.mem_read(address, 1);
               if (instrBytes[0] === 0xF4) { // HLT instruction
                 console.log('Program completed successfully (exit breakpoint hit)');
-                document.getElementById('emuOutput').textContent += '\nProgram completed successfully.\n';
+                if (!window.isPerformanceModeActive) {
+                  document.getElementById('emuOutput').textContent += '\nProgram completed successfully.\n';
+                }
               }
             } catch(e) {
               // If we can't read the instruction, assume it's a normal breakpoint
@@ -156,8 +158,12 @@
           this.logDebugState(startAddr, instructionText);
           
           this.updateUI();
-          this.highlightCurrentLine();
-          this.highlightCFunction(this.currentAddress);
+          if (!window.isPerformanceModeActive) {
+            this.highlightCurrentLine();
+          }
+          if (!window.isPerformanceModeActive) {
+            this.highlightCFunction(this.currentAddress);
+          }
         } catch(e) {
           console.error('Step error:', e);
           const errorMsg = e.message || e.toString();
@@ -165,12 +171,18 @@
           // Check for specific error types
           if (errorMsg.includes('UC_ERR_INSN_INVALID')) {
             const pc = this.getCurrentPC();
-            document.getElementById('emuOutput').textContent += `Invalid instruction at 0x${pc.toString(16)}\n`;
+            if (!window.isPerformanceModeActive) {
+              document.getElementById('emuOutput').textContent += `Invalid instruction at 0x${pc.toString(16)}\n`;
+            }
           } else if (errorMsg.includes('UC_ERR_FETCH_UNMAPPED')) {
             const pc = this.getCurrentPC();
-            document.getElementById('emuOutput').textContent += `Unmapped instruction fetch at 0x${pc.toString(16)}\n`;
+            if (!window.isPerformanceModeActive) {
+              document.getElementById('emuOutput').textContent += `Unmapped instruction fetch at 0x${pc.toString(16)}\n`;
+            }
           } else {
-            document.getElementById('emuOutput').textContent += `Step error: ${errorMsg}\n`;
+            if (!window.isPerformanceModeActive) {
+              document.getElementById('emuOutput').textContent += `Step error: ${errorMsg}\n`;
+            }
           }
           
           // Show final return value when execution stops
@@ -178,7 +190,9 @@
             const returnValue = this.is64bit ? 
               this.engine.reg_read_i64(UnicornModule.X86_REG_RAX) :
               this.engine.reg_read_i32(UnicornModule.X86_REG_EAX);
-            document.getElementById('emuOutput').textContent += `\nProgram finished. Return value: ${returnValue} (0x${returnValue.toString(16)})\n`;
+            if (!window.isPerformanceModeActive) {
+              document.getElementById('emuOutput').textContent += `\nProgram finished. Return value: ${returnValue} (0x${returnValue.toString(16)})\n`;
+            }
           } catch(e) {
             // Ignore if we can't read registers
           }
@@ -201,7 +215,9 @@
         this.maxInstructions = 10000; // Safety limit
         
         console.log('Starting continuous execution until HLT...');
-        document.getElementById('emuOutput').textContent += 'Running until halt...\n';
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('emuOutput').textContent += 'Running until halt...\n';
+        }
         
         this.updateButtonStates();
         this.continueExecution();
@@ -215,7 +231,9 @@
         // Safety check
         if (this.executionCount >= this.maxInstructions) {
           console.log('Maximum instruction limit reached - stopping execution');
-          document.getElementById('emuOutput').textContent += `\nExecution stopped: ${this.maxInstructions} instruction limit reached\n`;
+          if (!window.isPerformanceModeActive) {
+            document.getElementById('emuOutput').textContent += `\nExecution stopped: ${this.maxInstructions} instruction limit reached\n`;
+          }
           this.stopExecution();
           return;
         }
@@ -226,7 +244,9 @@
           // Check for halt instruction before execution
           if (this.isHaltInstruction(startAddr)) {
             console.log('HLT instruction encountered - stopping execution');
-            document.getElementById('emuOutput').textContent += '\nHLT instruction reached - program terminated\n';
+            if (!window.isPerformanceModeActive) {
+              document.getElementById('emuOutput').textContent += '\nHLT instruction reached - program terminated\n';
+            }
             this.stopExecution();
             return;
           }
@@ -240,7 +260,9 @@
           
         } catch(e) {
           console.error('Execution error:', e);
-          document.getElementById('emuOutput').textContent += `\nExecution stopped due to error: ${e.message}\n`;
+          if (!window.isPerformanceModeActive) {
+            document.getElementById('emuOutput').textContent += `\nExecution stopped due to error: ${e.message}\n`;
+          }
           this.stopExecution();
         }
       }
@@ -249,7 +271,9 @@
         this.isRunning = false;
         this.isPaused = true;
         console.log(`Execution stopped after ${this.executionCount} instructions`);
-        document.getElementById('emuOutput').textContent += `\nExecution stopped. Instructions executed: ${this.executionCount}\n`;
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('emuOutput').textContent += `\nExecution stopped. Instructions executed: ${this.executionCount}\n`;
+        }
         this.updateButtonStates();
         this.updateUI();
       }
@@ -279,26 +303,28 @@
         const fabStop = document.querySelector('.fab-stop');
         const fabStep = document.querySelector('.fab-step');
         
-        if (this.isRunning) {
-          // During execution: hide run, show stop, disable step/reset
-          if (runBtn) { runBtn.style.display = 'none'; }
-          if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; }
-          if (stepBtn) { stepBtn.disabled = true; }
-          if (resetBtn) { resetBtn.disabled = true; }
-          
-          if (fabRun) { fabRun.style.display = 'none'; }
-          if (fabStop) { fabStop.style.display = 'block'; fabStop.disabled = false; }
-          if (fabStep) { fabStep.disabled = true; fabStep.style.opacity = '0.5'; }
-        } else {
-          // When stopped: show run, hide stop, enable step/reset
-          if (runBtn) { runBtn.style.display = 'inline-block'; runBtn.disabled = false; }
-          if (stopBtn) { stopBtn.style.display = 'none'; }
-          if (stepBtn) { stepBtn.disabled = false; }
-          if (resetBtn) { resetBtn.disabled = false; }
-          
-          if (fabRun) { fabRun.style.display = 'block'; fabRun.disabled = false; }
-          if (fabStop) { fabStop.style.display = 'none'; }
-          if (fabStep) { fabStep.disabled = false; fabStep.style.opacity = '1'; }
+        if (!window.isPerformanceModeActive) {
+          if (this.isRunning) {
+            // During execution: hide run, show stop, disable step/reset
+            if (runBtn) { runBtn.style.display = 'none'; }
+            if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; }
+            if (stepBtn) { stepBtn.disabled = true; }
+            if (resetBtn) { resetBtn.disabled = true; }
+            
+            if (fabRun) { fabRun.style.display = 'none'; }
+            if (fabStop) { fabStop.style.display = 'block'; fabStop.disabled = false; }
+            if (fabStep) { fabStep.disabled = true; fabStep.style.opacity = '0.5'; }
+          } else {
+            // When stopped: show run, hide stop, enable step/reset
+            if (runBtn) { runBtn.style.display = 'inline-block'; runBtn.disabled = false; }
+            if (stopBtn) { stopBtn.style.display = 'none'; }
+            if (stepBtn) { stepBtn.disabled = false; }
+            if (resetBtn) { resetBtn.disabled = false; }
+            
+            if (fabRun) { fabRun.style.display = 'block'; fabRun.disabled = false; }
+            if (fabStop) { fabStop.style.display = 'none'; }
+            if (fabStep) { fabStep.disabled = false; fabStep.style.opacity = '1'; }
+          }
         }
       }
       
@@ -318,8 +344,10 @@
         
         this.updateButtonStates();
         this.updateUI();
-        document.getElementById('emuOutput').textContent = 'Debugger reset.\n';
-        document.getElementById('stepAnalysisOutput').textContent = '';
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('emuOutput').textContent = 'Debugger reset.\n';
+          document.getElementById('stepAnalysisOutput').textContent = '';
+        }
       }
       
       captureStepState() {
@@ -527,7 +555,9 @@
               <span class="reg-value">0x${value.toString(16).padStart(this.is64bit ? 16 : 8, '0')}</span>
             </div>`
           ).join('');
-        document.getElementById('registerGrid').innerHTML = regHTML;
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('registerGrid').innerHTML = regHTML;
+        }
       }
       
       updateStack() {
@@ -538,7 +568,9 @@
             <span class="stack-value">0x${item.value.toString(16).padStart(this.is64bit ? 16 : 8, '0')}</span>
           </div>`
         ).join('');
-        document.getElementById('stackView').innerHTML = stackHTML;
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('stackView').innerHTML = stackHTML;
+        }
       }
       
       
@@ -746,8 +778,8 @@
 
         const currentFunctionName = functionInfo.functionName;
 
-        // Only update highlighting if we've switched functions
-        if (this.currentHighlightedFunction !== currentFunctionName) {
+        // Only update highlighting if we've switched functions and not in performance mode
+        if (!window.isPerformanceModeActive && this.currentHighlightedFunction !== currentFunctionName) {
             this.clearCHighlight();
 
             // Highlight the entire function using CodeMirror's addLineClass
@@ -762,14 +794,16 @@
       }
       
       clearCHighlight() {
-        if (sourceCodeEditor) {
+        if (!window.isPerformanceModeActive && sourceCodeEditor) {
           // Clear all lines since we're doing function-level highlighting
           const lineCount = sourceCodeEditor.lineCount();
           for (let i = 0; i < lineCount; i++) {
             sourceCodeEditor.removeLineClass(i, 'background', 'highlight-line');
           }
         }
-        this.currentHighlightedFunction = null;
+        if (!window.isPerformanceModeActive) {
+          this.currentHighlightedFunction = null;
+        }
       }
     }
     
@@ -1152,7 +1186,9 @@
       const jsonContent = JSON.stringify(obj, (k,v)=>(k==='view'?undefined:v), 2);
       
       // Always write to the single compile-output div
-      document.getElementById('compile-output').textContent = header + jsonContent;
+      if (!window.isPerformanceModeActive) {
+        document.getElementById('compile-output').textContent = header + jsonContent;
+      }
     }
     
     
@@ -1215,8 +1251,12 @@
             }
           });
           
+          if (!window.isPerformanceModeActive) {
+            if (!window.isPerformanceModeActive) {
           document.getElementById('disassembly').textContent = disasmOutput || 'No executable sections found';
-          document.getElementById('runUnicorn').disabled=false;
+        }
+            document.getElementById('runUnicorn').disabled=false;
+          }
         }catch(err){
           showJSON({error:err.message});
         }
@@ -1231,9 +1271,11 @@
       const codeChanged = window.lastCompiledCode !== currentCode;
       
       // Clear previous ELF data and disable debugger
-      document.getElementById('compile-output').textContent = '';
-      document.getElementById('disassembly').textContent = 'Disassembly will appear here after loading object file...';
-      document.getElementById('runUnicorn').disabled = true;
+      if (!window.isPerformanceModeActive) {
+        document.getElementById('compile-output').textContent = '';
+        document.getElementById('disassembly').textContent = 'Disassembly will appear here after loading object file...';
+        document.getElementById('runUnicorn').disabled = true;
+      }
       parsed = null;
       
       // Only clear function names if C code has changed
@@ -1318,7 +1360,9 @@
           }
         });
         
-        document.getElementById('disassembly').textContent = disasmOutput || 'No executable sections found';
+        if (!window.isPerformanceModeActive) {
+          document.getElementById('disassembly').textContent = disasmOutput || 'No executable sections found';
+        }
         
         // Enable the debugger initialization button
         document.getElementById('runUnicorn').disabled = false;
@@ -1817,9 +1861,13 @@
       
       // Update initial state
       unicornDebugger.updateUI();
-      unicornDebugger.highlightCurrentLine();
+      if (!window.isPerformanceModeActive) {
+        unicornDebugger.highlightCurrentLine();
+      }
       
-      document.getElementById('emuOutput').textContent = 'Debugger initialized. Ready to step through code.\n';
+      if (!window.isPerformanceModeActive) {
+        document.getElementById('emuOutput').textContent = 'Debugger initialized. Ready to step through code.\n';
+      }
     });
     
     // Debugger control event handlers

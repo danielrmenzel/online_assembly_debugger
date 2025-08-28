@@ -5,6 +5,9 @@
 // Provides separate success rates and timing for each approach, handles failures gracefully
 // ============================================================================
 
+// Performance mode flag - disables UI updates during measurement
+window.isPerformanceModeActive = false;
+
 // Performance data collection object
 window.performanceData = {
   compilationTimes: [],
@@ -184,6 +187,9 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
         objectExecutionSuccess = true;
         console.log(`📊 ${testName} - Phase 1B: Object execution succeeded, result: ${objectActualValue}`);
         
+        // Store object file data for comparison
+        window.lastObjectFileData = originalResultData;
+        
         // Restore original result data
         resultData = originalResultData;
         resultType = originalResultType;
@@ -215,7 +221,35 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
       // Check what's in window.compiledFunctionNames before Phase 2 compile
       console.log(`📊 ${testName} - Phase 2A: Pre-compile function names:`, window.compiledFunctionNames ? window.compiledFunctionNames.map(f => f.name) : 'null');
       
+      // DEBUGGING: Check resultData before linking
+      console.log(`📊 ${testName} - Phase 2A: Pre-link resultData:`, {
+        hasResultData: !!resultData,
+        resultType: resultType,
+        size: resultData ? resultData.length : 0
+      });
+      
       compileFromSource('link');
+      
+      // DEBUGGING: Check resultData after linking
+      console.log(`📊 ${testName} - Phase 2A: Post-link resultData:`, {
+        hasResultData: !!resultData,
+        resultType: resultType,
+        size: resultData ? resultData.length : 0
+      });
+      
+      // CRITICAL: Check if linking actually succeeded by comparing file sizes
+      const linkedFileSize = resultData ? resultData.length : 0;
+      const objectFileSize = window.lastObjectFileData ? window.lastObjectFileData.length : 0;
+      
+      if (linkedFileSize === objectFileSize && resultType === 'object') {
+        console.error(`📊 ${testName} - Phase 2A: LINKING FAILED - resultData still contains object file (${linkedFileSize} bytes)`);
+        throw new Error('Linking failed - TinyCC did not generate linked executable');
+      }
+      
+      if (resultType !== 'linked_executable') {
+        console.error(`📊 ${testName} - Phase 2A: LINKING FAILED - resultType is '${resultType}', expected 'linked_executable'`);
+        throw new Error(`Linking failed - resultType is '${resultType}', not 'linked_executable'`);
+      }
       
       // Check what Phase 2 compile did to function names
       console.log(`📊 ${testName} - Phase 2A: Post-compile function names:`, window.compiledFunctionNames ? window.compiledFunctionNames.map(f => f.name) : 'null');
@@ -235,6 +269,8 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
       console.log(`📊 ${testName} - Phase 2A: Compile+Link succeeded, linked file stored (${linkedFileData ? linkedFileData.length : 0} bytes)`);
     } catch (error) {
       console.warn(`📊 ${testName} - Phase 2A: Compile+Link failed:`, error);
+      // Clear any cached linked data to prevent confusion
+      linkedFileData = null;
     }
     
     const phase2CompileEndTime = performance.now();
@@ -259,11 +295,50 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
         
         if (functionsToUse) {
           // Attach function names directly to the binary data
-          resultData._savedPhase1Functions = functionsToUse;
-          resultData._savedPhase1Code = window.savedPhase1Code || phase1LastCode;
-          console.log(`📊 ${testName} - Phase 2B: Attached Phase 1 functions directly to resultData:`, functionsToUse.map(f => f.name));
+          linkedFileData._savedPhase1Functions = functionsToUse;
+          linkedFileData._savedPhase1Code = window.savedPhase1Code || phase1LastCode;
+          console.log(`📊 ${testName} - Phase 2B: Attached Phase 1 functions directly to linkedFileData:`, functionsToUse.map(f => f.name));
         } else {
           console.log(`📊 ${testName} - Phase 2B: No Phase 1 functions available for attachment`);
+        }
+        
+        // CRITICAL FIX: Actually load the linked file data into the debugger!
+        console.log(`📊 ${testName} - Phase 2B: Loading linked file data into debugger (${linkedFileData ? linkedFileData.length : 0} bytes)`);
+        console.log(`📊 ${testName} - Phase 2B: DEBUGGING - Test code being used:`, testData.code);
+        console.log(`📊 ${testName} - Phase 2B: DEBUGGING - Expected result:`, testData.expected);
+        
+        // Verify the linkedFileData is different from the object file data
+        if (window.lastObjectFileData && linkedFileData) {
+          const sameLength = window.lastObjectFileData.length === linkedFileData.length;
+          const sameContent = sameLength && window.lastObjectFileData.every((byte, i) => byte === linkedFileData[i]);
+          console.log(`📊 ${testName} - Phase 2B: DEBUGGING - Object vs Linked file comparison: same length=${sameLength}, same content=${sameContent}`);
+        }
+        
+        const linkLoadSuccess = autoLoadCompiledFile(linkedFileData, 'link');
+        if (!linkLoadSuccess) {
+          throw new Error('Failed to load linked file data into debugger');
+        }
+        
+        // Wait a moment for the debugger to process the new file
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // DEBUGGING: Check what file is actually loaded in the debugger
+        console.log(`📊 ${testName} - Phase 2B: DEBUGGING - About to execute. Current parsed data:`, {
+          hasGlobalParsed: !!window.parsed,
+          parsedType: window.parsed ? (window.parsed.elfHeader ? 'ELF' : 'unknown') : 'null',
+          compiledFunctionNames: window.compiledFunctionNames ? window.compiledFunctionNames.map(f => f.name) : 'null'
+        });
+        
+        // DEBUGGING: Force a manual verification by checking if we can initialize debugger
+        try {
+          const runUnicornBtn = document.getElementById('runUnicorn');
+          console.log(`📊 ${testName} - Phase 2B: DEBUGGING - runUnicorn button state:`, {
+            exists: !!runUnicornBtn,
+            disabled: runUnicornBtn?.disabled,
+            text: runUnicornBtn?.textContent?.trim()
+          });
+        } catch (debugErr) {
+          console.warn(`📊 ${testName} - Phase 2B: DEBUGGING - Button check failed:`, debugErr);
         }
         
         linkedActualValue = await executeCodeAndGetResult(testData.timeout || 20000);
@@ -290,10 +365,12 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
       success = true;
       actualValue = linkedActualValue;
       executionMode = 'linked';
+      console.log(`📊 ${testName} - SUCCESS: Using linked execution result (${linkedActualValue})`);
     } else if (objectExecutionSuccess && objectActualValue === testData.expected) {
       success = true;
       actualValue = objectActualValue;
       executionMode = 'object';
+      console.log(`📊 ${testName} - SUCCESS: Using object execution fallback (${objectActualValue})${linkedExecutionSuccess ? ' - linked gave wrong result' : ' - linked execution failed'}`);
     } else {
       // Neither execution succeeded with correct result
       if (linkedExecutionSuccess) {
@@ -306,6 +383,7 @@ async function runTestWithPerformanceMeasurement(testName, testData) {
         actualValue = 'ERROR';
         executionMode = 'both_failed';
       }
+      console.log(`📊 ${testName} - FAILURE: Both execution modes failed or gave wrong results`);
     }
     
     const totalTime = performance.now() - overallStartTime;
@@ -440,6 +518,10 @@ function getTestCategory(testName) {
 async function runAllTestsWithPerformanceMeasurement() {
   console.log('🚀 Starting comprehensive performance measurement...');
   
+  // Enable performance mode to disable UI updates
+  window.isPerformanceModeActive = true;
+  console.log('📊 Performance mode activated - UI updates disabled');
+  
   // Initialize performance data
   window.performanceData.startTime = new Date().toISOString();
   collectSystemInfo();
@@ -514,21 +596,55 @@ async function runAllTestsWithPerformanceMeasurement() {
           const phases = result.phases;
           const times = result.times;
           
-          // Show separate PASS/FAIL for each phase
-          testResults.innerHTML += `${result.success ? '✅ OVERALL PASS' : '❌ OVERALL FAIL'}\n`;
+          // Show overall status with context about which mode succeeded
+          let overallStatus;
+          if (result.success) {
+            if (result.phases.executionMode === 'object') {
+              if (result.phases.compileLinkSuccess && !result.phases.linkedExecutionSuccess) {
+                overallStatus = '✅ OVERALL PASS (fallback to object - linked compiled but failed execution)';
+              } else if (!result.phases.compileLinkSuccess) {
+                overallStatus = '✅ OVERALL PASS (fallback to object - linking failed)';
+              } else {
+                overallStatus = '✅ OVERALL PASS (preferred object)';
+              }
+            } else if (result.phases.executionMode === 'linked') {
+              overallStatus = '✅ OVERALL PASS (linked executable working)';
+            } else {
+              overallStatus = '✅ OVERALL PASS';
+            }
+          } else {
+            overallStatus = '❌ OVERALL FAIL';
+          }
+          testResults.innerHTML += `${overallStatus}\n`;
           
           // Compile phase status
           const compileStatus = phases.compileOnlySuccess ? '✅ PASS' : '❌ FAIL';
           testResults.innerHTML += `  Compile: ${compileStatus} (${times.compileOnly}ms)\n`;
           
-          // Link phase status  
-          const linkStatus = phases.compileLinkSuccess ? '✅ PASS' : '❌ FAIL';
+          // Link phase status - distinguish between compilation success and execution viability
+          let linkStatus;
+          if (!phases.compileLinkSuccess) {
+            linkStatus = '❌ FAIL (compilation)';
+          } else if (phases.linkedExecutionSuccess) {
+            linkStatus = '✅ PASS (executable)';
+          } else {
+            linkStatus = '✅ PASS (compiled) / ❌ FAIL (execution)';
+          }
           testResults.innerHTML += `  Link: ${linkStatus} (${times.compileLink}ms)\n`;
           
-          // Execution status
+          // Execution status with better context
           const objExecStatus = phases.objectExecutionSuccess ? '✅' : '❌';
-          const linkedExecStatus = phases.linkedExecutionSuccess ? '✅' : '❌';
-          testResults.innerHTML += `  Execute: obj:${objExecStatus}(${times.objectExecution}ms), linked:${linkedExecStatus}(${times.linkedExecution}ms), mode: ${phases.executionMode}\n\n`;
+          let linkedExecDisplay;
+          
+          if (!phases.compileLinkSuccess) {
+            linkedExecDisplay = '❌(skipped - link failed)';
+          } else if (phases.linkedExecutionSuccess) {
+            linkedExecDisplay = `✅(${times.linkedExecution}ms)`;
+          } else {
+            linkedExecDisplay = `❌(${times.linkedExecution}ms)`;
+          }
+          
+          testResults.innerHTML += `  Execute: obj:${objExecStatus}(${times.objectExecution}ms), linked:${linkedExecDisplay}, mode: ${phases.executionMode}\n\n`;
         }
         
         if (testResults) {
@@ -594,6 +710,10 @@ async function runAllTestsWithPerformanceMeasurement() {
   
   // Generate final report
   generatePerformanceReport();
+  
+  // Disable performance mode to re-enable UI updates
+  window.isPerformanceModeActive = false;
+  console.log('📊 Performance mode deactivated - UI updates re-enabled');
   
   console.log('🏁 Performance measurement completed!');
   if (testResults) {

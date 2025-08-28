@@ -228,8 +228,7 @@ void _start() {
                     if (magic === '\x7fELF') {
                         if (mode === 'link') {
                             output += `✅ Valid ELF executable with proper entry points!\n`;
-                            output += `� This will have better symbol resolution and cleaner assembly for debugging.\n`;
-                            output += `�📥 Click "Download" or load into debugger!`;
+                            output += `📥 Click "Download" or load into debugger!`;
                         } else {
                             output += `✅ Valid ELF object file!\n`;
                             output += `📥 Click "Download" to get your .o file!`;
@@ -250,7 +249,7 @@ void _start() {
                 if (autoLoadSuccess) {
                     if (mode === 'link') {
                         output += `\n🔄 AUTO-LOADED: Linked executable loaded into debugger!`;
-                        output += `\n📋 You should see better symbols and entry points - Click "🔧 Initialize Debugger"`;
+                        output += `\n📋 Click "🔧 Initialize Debugger"`;
                     } else {
                         output += `\n🔄 AUTO-LOADED: Object file automatically loaded into debugger!`;
                         output += `\n📋 Ready for debugging - Click "🔧 Initialize Debugger"`;
